@@ -1,0 +1,2002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Budget Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--border:#2e3348;
+  --accent:#6c8cff;--accent2:#a78bfa;--green:#34d399;--red:#f87171;--amber:#fbbf24;
+  --text:#e2e8f0;--muted:#64748b;
+  --r:12px;--rs:8px;
+  --sidebar-w:220px;
+  --topbar-h:54px;
+  --bottom-nav-h:60px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:14px;min-height:100vh;overflow-x:hidden}
+
+/* ── SHELL ── */
+.shell{display:flex;min-height:100vh}
+
+/* ── SIDEBAR (desktop) ── */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:24px 0;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  transition:transform .25s ease;z-index:50;
+}
+.logo{padding:0 20px 20px;font-size:16px;font-weight:700;color:var(--accent);letter-spacing:-.5px;border-bottom:1px solid var(--border);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.logo span{color:var(--text)}
+.logo-close{display:none;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:2px 4px;line-height:1}
+.nav-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:0 20px 8px}
+.nav-btn{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;border:none;background:none;width:100%;text-align:left;transition:all .15s;white-space:nowrap}
+.nav-btn:hover{color:var(--text);background:rgba(108,140,255,.07)}
+.nav-btn.active{color:var(--accent);background:rgba(108,140,255,.12);border-right:2px solid var(--accent)}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.year-group-header{display:flex;align-items:center;gap:8px;padding:9px 20px;cursor:pointer;color:var(--text);font-size:13px;font-weight:600;border:none;background:none;width:100%;text-align:left;transition:all .15s}
+.year-group-header:hover{background:rgba(108,140,255,.07)}
+.year-group-header.active-year{color:var(--accent)}
+.year-caret{display:inline-block;transition:transform .15s;font-size:9px;color:var(--muted);flex-shrink:0}
+.year-caret.open{transform:rotate(90deg)}
+.year-month-list{overflow:hidden;max-height:0;transition:max-height .3s ease}
+.year-month-list.open{max-height:600px}
+.year-month-list .nav-btn{padding-left:42px}
+.sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+
+/* ── SIDEBAR OVERLAY (mobile) ── */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:49}
+.sidebar-overlay.open{display:block}
+
+/* ── MAIN ── */
+.main{flex:1;overflow-x:hidden;min-width:0}
+
+/* ── TOPBAR ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;height:var(--topbar-h);
+  border-bottom:1px solid var(--border);background:var(--surface);
+  position:sticky;top:0;z-index:20;gap:10px;
+}
+.topbar-left{display:flex;align-items:center;gap:10px;min-width:0}
+.hamburger{display:none;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:4px;flex-shrink:0;line-height:1}
+.topbar-title{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-right{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.budget-wrap{display:flex;align-items:center;gap:5px}
+.budget-wrap label{font-size:11px;color:var(--muted);white-space:nowrap}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:var(--rs);font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);transition:all .15s;font-family:inherit;white-space:nowrap;touch-action:manipulation}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:active{opacity:.8;transform:scale(.97)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#5a7af0;border-color:#5a7af0;color:#fff}
+.btn-green{background:rgba(52,211,153,.15);border-color:var(--green);color:var(--green)}
+.btn-green:hover{background:rgba(52,211,153,.25)}
+.btn-amber{background:rgba(251,191,36,.15);border-color:var(--amber);color:var(--amber)}
+.btn-amber:hover{background:rgba(251,191,36,.25)}
+.btn-icon{padding:7px 10px;font-size:14px}
+
+/* ── INPUTS ── */
+input[type=text],input[type=number],input[type=date],select{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:var(--rs);padding:8px 10px;
+  font-size:13px;font-family:inherit;outline:none;transition:border .15s;
+  min-height:36px;-webkit-appearance:none;appearance:none;
+}
+input:focus,select:focus{border-color:var(--accent)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+select option{background:var(--surface2)}
+
+/* ── PAGES ── */
+.page{display:none;padding:20px}
+.page.active{display:block}
+
+/* ── KPI CARDS ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:5px}
+.kpi-value{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:-1px;line-height:1.1}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.kpi-value.green{color:var(--green)}.kpi-value.red{color:var(--red)}.kpi-value.amber{color:var(--amber)}.kpi-value.blue{color:var(--accent)}
+.progress-bar{height:5px;background:var(--surface2);border-radius:99px;overflow:hidden;margin-top:7px}
+.progress-fill{height:100%;border-radius:99px;transition:width .4s ease}
+
+/* ── CHARTS ── */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.chart-wide{grid-column:1/-1}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.chart-card h3{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.6px}
+.chart-wrap{position:relative;height:240px}
+.chart-wrap-tall{position:relative;height:280px}
+.donut-wrap{position:relative}
+.donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.donut-center .big{font-size:16px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text)}
+.donut-center .small{font-size:10px;color:var(--muted);margin-top:2px}
+.cat-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.cat-pill{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);padding:2px 7px;border-radius:99px;border:1px solid var(--border)}
+.cat-pill .sw{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* ── CHART CONTROLS ── */
+.chart-controls{display:flex;align-items:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.chart-controls h3{margin:0;flex-shrink:0}
+.ctrl-group{display:flex;flex-direction:column;gap:3px}
+.ctrl-group label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.ctrl-group select{width:auto;min-width:110px;font-size:12px;padding:5px 28px 5px 8px}
+
+/* ── TABLE ── */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px}
+.table-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.table-toolbar h3{font-size:13px;font-weight:600;margin-right:auto}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 10px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface2);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid rgba(46,51,72,.5);font-size:13px}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(108,140,255,.04)}
+.table-scroll{overflow-x:auto;max-height:420px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.cat-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:99px;font-size:11px;font-weight:500;white-space:nowrap}
+.mode-badge{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:500;white-space:nowrap}
+.mode-on{background:rgba(108,140,255,.15);color:var(--accent)}
+.mode-off{background:rgba(52,211,153,.12);color:var(--green)}
+.amt{font-family:'JetBrains Mono',monospace;font-size:12px;white-space:nowrap}
+.del-btn,.edit-btn{background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:4px;transition:all .15s;font-size:15px;touch-action:manipulation;min-width:28px;min-height:28px}
+.del-btn{color:var(--muted)}.del-btn:hover{color:var(--red);background:rgba(248,113,113,.12)}
+.edit-btn{color:var(--muted)}.edit-btn:hover{color:var(--accent);background:rgba(108,140,255,.12)}
+
+/* ── ADD FORM ── */
+.add-form{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:20px}
+.add-form h3{font-size:11px;font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.form-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;align-items:end}
+.form-group label{display:block;font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.form-group input,.form-group select{width:100%}
+.form-group .btn{width:100%;justify-content:center}
+
+/* ── ALERT ── */
+.alert{display:none;padding:9px 14px;border-radius:var(--rs);font-size:13px;margin-bottom:14px;align-items:center;gap:8px}
+.alert.warn{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:var(--amber);display:flex}
+.alert.danger{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--red);display:flex}
+
+/* ── SUMMARY TABLE ── */
+.summary-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:76px;right:16px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 15px;border-radius:var(--rs);font-size:13px;font-weight:500;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s ease;pointer-events:none;max-width:280px}
+#toast.show{transform:translateY(0);opacity:1}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:flex-end;justify-content:center;padding:0}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r) var(--r) 0 0;padding:20px;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(60px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:14px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.modal-footer .btn{flex:1;min-width:80px;justify-content:center}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ── IMPORT ── */
+.import-drop{border:2px dashed var(--border);border-radius:var(--r);padding:28px 20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px;position:relative}
+.import-drop:hover,.import-drop.dragover{border-color:var(--accent);background:rgba(108,140,255,.06)}
+.import-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.import-drop .di{font-size:26px;margin-bottom:5px}
+.import-drop .dl{font-size:13px;font-weight:500}
+.import-drop .ds{font-size:11px;color:var(--muted);margin-top:3px}
+.import-summary{display:none;margin-bottom:12px}
+.sum-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px}
+.sum-row:last-child{border:none}
+.sum-badge{font-size:11px;font-weight:600;padding:2px 7px;border-radius:99px}
+.sum-new{background:rgba(52,211,153,.15);color:var(--green)}
+.sum-upd{background:rgba(108,140,255,.15);color:var(--accent)}
+.sum-skip{background:rgba(148,163,184,.1);color:var(--muted)}
+.import-mode-row{display:flex;gap:8px;margin-bottom:12px}
+.imp-mode-btn{flex:1;padding:8px;border-radius:var(--rs);border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:500;cursor:pointer;text-align:center;transition:all .15s;font-family:inherit}
+.imp-mode-btn.selected{border-color:var(--accent);color:var(--accent);background:rgba(108,140,255,.1)}
+.imp-mode-btn .mt{font-size:12px;font-weight:600;margin-bottom:2px}
+.import-preview{display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--rs);padding:10px;font-size:11px;max-height:160px;overflow-y:auto;margin-bottom:12px}
+.import-preview table{width:100%;border-collapse:collapse}
+.import-preview th{color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:3px 6px;border-bottom:1px solid var(--border);font-size:10px}
+.import-preview td{padding:3px 6px;border-bottom:1px solid rgba(46,51,72,.4);color:var(--text)}
+.import-preview tr:last-child td{border:none}
+
+/* ── BOTTOM NAV (mobile only) ── */
+.bottom-nav{
+  display:none;position:fixed;bottom:0;left:0;right:0;
+  height:var(--bottom-nav-h);background:var(--surface);
+  border-top:1px solid var(--border);z-index:30;
+  padding:0 4px;
+}
+.bottom-nav-inner{display:flex;align-items:stretch;height:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.bottom-nav-inner::-webkit-scrollbar{display:none}
+.bnav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 10px;min-width:60px;border:none;background:none;color:var(--muted);font-size:9px;font-weight:500;cursor:pointer;transition:color .15s;white-space:nowrap;font-family:inherit;flex-shrink:0}
+.bnav-btn .bicon{font-size:18px;line-height:1;margin-bottom:1px}
+.bnav-btn.active{color:var(--accent)}
+.bnav-btn.active .bicon{transform:scale(1.1)}
+
+/* ══════════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+══════════════════════════════════════════════════ */
+
+/* ── Large desktop (≥1280px) ── */
+@media(min-width:1280px){
+  :root{--sidebar-w:240px}
+  .kpi-grid{grid-template-columns:repeat(5,1fr)}
+  .chart-wrap-tall{height:320px}
+  .page{padding:28px}
+}
+
+/* ── Tablet landscape / small desktop (860px–1279px) ── */
+@media(max-width:1279px) and (min-width:861px){
+  :root{--sidebar-w:200px}
+  .charts-grid{grid-template-columns:1fr 1fr}
+}
+
+/* ── Tablet portrait (601px–860px) ── */
+@media(max-width:860px){
+  .charts-grid{grid-template-columns:1fr}
+  .chart-wide{grid-column:1}
+  :root{--sidebar-w:200px}
+  .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  .chart-wrap-tall{height:260px}
+  .topbar{padding:0 16px}
+}
+
+/* ── Mobile (≤600px) ── */
+@media(max-width:600px){
+  /* Sidebar becomes a drawer */
+  .sidebar{
+    position:fixed;left:0;top:0;height:100vh;
+    transform:translateX(-100%);
+    box-shadow:4px 0 24px rgba(0,0,0,.4);
+  }
+  .sidebar.open{transform:translateX(0)}
+  .logo-close{display:block}
+  .hamburger{display:flex}
+
+  /* Show bottom nav, hide sidebar footer buttons */
+  .bottom-nav{display:block}
+  .sidebar-footer{display:none}
+
+  /* Add bottom padding so content isn't behind bottom nav */
+  .page{padding:14px 14px calc(var(--bottom-nav-h) + 14px)}
+
+  /* Topbar compact */
+  .topbar{padding:0 12px;height:50px}
+  .topbar-title{font-size:14px}
+  .budget-wrap{display:none}
+  .topbar-right .btn:not(.btn-icon){display:none}
+
+  /* KPIs: 2 columns */
+  .kpi-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .kpi{padding:12px 14px}
+  .kpi-value{font-size:18px}
+
+  /* Charts: full width, shorter */
+  .charts-grid{grid-template-columns:1fr;gap:10px}
+  .chart-wrap{height:200px}
+  .chart-wrap-tall{height:220px}
+  .chart-card{padding:12px}
+
+  /* Chart controls stack vertically */
+  .chart-controls{flex-direction:column;align-items:flex-start;gap:8px}
+  .chart-controls h3{margin-bottom:6px}
+  .ctrl-row{display:flex;flex-wrap:wrap;gap:8px;width:100%}
+  .ctrl-group{flex:1;min-width:120px}
+  .ctrl-group select{width:100%}
+
+  /* Form: 1 column */
+  .form-row{grid-template-columns:1fr 1fr}
+
+  /* Modal: full bottom sheet */
+  .modal{border-radius:var(--r) var(--r) 0 0;padding:18px}
+  .modal-grid{grid-template-columns:1fr}
+  .modal-grid .form-group[style*="grid-column"]{grid-column:unset}
+
+  /* Table: horizontal scroll with sticky first col */
+  .table-scroll{max-height:360px}
+  th,td{padding:7px 8px;font-size:12px}
+
+  /* Toast above bottom nav */
+  #toast{bottom:calc(var(--bottom-nav-h) + 10px);right:12px}
+
+  /* Summary table horizontal scroll */
+  .summary-card{overflow-x:auto}
+}
+
+/* ── Modal: center on tablet+ ── */
+@media(min-width:601px){
+  .modal-overlay{align-items:center}
+  .modal{border-radius:var(--r);max-width:540px;width:90vw}
+}
+
+/* ── Small mobile (≤380px) ── */
+@media(max-width:380px){
+  .kpi-grid{grid-template-columns:1fr}
+  .kpi-value{font-size:20px}
+  .form-row{grid-template-columns:1fr}
+  .imp-mode-row{flex-direction:column}
+}
+
+/* ── Touch/hover states for mobile ── */
+@media(hover:none){
+  .btn:hover{border-color:var(--border);color:var(--text)}
+  .btn-primary:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn-green:hover{background:rgba(52,211,153,.15)}
+  .btn-amber:hover{background:rgba(251,191,36,.15)}
+  .nav-btn:hover{color:var(--muted);background:none}
+  .nav-btn.active:hover{color:var(--accent);background:rgba(108,140,255,.12)}
+}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<datalist id="descSuggestions"></datalist>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- GitHub Connect Gate -->
+<div class="modal-overlay" id="connectGate" style="z-index:500;background:rgba(6,8,14,.92)">
+ <div class="modal" style="max-width:480px">
+  <h3>🔗 Connect to GitHub</h3>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Your transactions live in a file in a GitHub repo, not in this browser. You can browse cached data from your last session without connecting, but adding, editing, deleting, or syncing requires connecting here first. Credentials are never saved — you'll enter these again next time.</p>
+  <div class="form-group" style="margin-bottom:10px"><label>Personal Access Token</label><input type="password" id="ghToken" placeholder="github_pat_…" style="width:100%" autocomplete="off"/></div>
+  <div class="form-group" style="margin-bottom:10px"><label>Repository (owner/name)</label><input type="text" id="ghRepo" placeholder="yourusername/Budget-Tracker-2026" style="width:100%"/></div>
+  <div class="modal-grid" style="margin-bottom:10px">
+   <div class="form-group"><label>Branch</label><input type="text" id="ghBranch" placeholder="main" style="width:100%"/></div>
+   <div class="form-group"><label>File Path</label><input type="text" id="ghPath" placeholder="data/budget-data.xlsx" style="width:100%"/></div>
+  </div>
+  <div class="form-group" style="margin-bottom:6px"><label>Encryption Passphrase</label><input type="password" id="ghPass" placeholder="only you know this" style="width:100%" autocomplete="off"/></div>
+  <p style="font-size:11px;color:var(--muted);margin-bottom:14px">Your data is structured as an Excel workbook internally (one sheet per month), then encrypted (AES-256) with this passphrase <em>before</em> it's ever sent to GitHub — the committed file itself is unreadable, even in Excel, without this passphrase, even though the repo is public. Use the "Export Excel" button any time for a real, openable local copy. Use a fine-grained token scoped to just this one repo with "Contents: Read and write" permission only.</p>
+  <div id="connectStatus" style="font-size:12px;color:var(--muted);margin-bottom:10px;min-height:16px"></div>
+  <div class="modal-footer">
+   <button class="btn" id="gateCancelBtn" onclick="cancelConnectGate()">Cancel</button>
+   <button class="btn btn-primary" id="ghConnectBtn">🔗 Connect &amp; Load</button>
+  </div>
+ </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal">
+ <div class="modal">
+  <h3>📥 Import from Excel</h3>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Upload an exported <code style="background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">Budget_Tracker.xlsx</code> or any compatible file. Sheet names should contain a month name and a year, e.g. <code style="background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">March 2026</code> (a bare month name like "March" is also accepted and is assumed to belong to the year currently selected). Columns: Date · Category · Description · Amount · Mode.</p>
+  <div class="import-drop" id="importDrop">
+   <input type="file" id="importFile" accept=".xlsx,.xls" onchange="handleImportFile(this.files[0])"/>
+   <div class="di">📂</div>
+   <div class="dl">Drop Excel file here or click to browse</div>
+   <div class="ds">.xlsx or .xls</div>
+  </div>
+  <div class="import-summary" id="importSummary"></div>
+  <div id="importModeWrap" style="display:none">
+   <p style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Import mode</p>
+   <div class="import-mode-row">
+    <button class="imp-mode-btn selected" id="modeReplace" onclick="selMode('replace')"><div class="mt">🔄 Replace</div>Clear existing month data and replace with file data</button>
+    <button class="imp-mode-btn" id="modeMerge" onclick="selMode('merge')"><div class="mt">➕ Merge</div>Keep existing entries and add new ones (no duplicates)</button>
+   </div>
+  </div>
+  <div class="import-preview" id="importPreview"></div>
+  <div class="modal-footer">
+   <button class="btn" onclick="closeImport()">Cancel</button>
+   <button class="btn" id="previewBtn" onclick="previewImport()" style="display:none">👁 Preview</button>
+   <button class="btn btn-primary" id="confirmImportBtn" onclick="confirmImport()" style="display:none">✓ Import</button>
+  </div>
+ </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+ <div class="modal">
+  <h3>✏ Edit Expense</h3>
+  <div class="modal-grid">
+   <div class="form-group"><label>Date</label><input type="date" id="eDate" style="width:100%"/></div>
+   <div class="form-group"><label>Category</label><select id="eCat" style="width:100%" onchange="populateDescSuggestions(this.value)"></select></div>
+   <div class="form-group" style="grid-column:1/-1"><label>Description</label><input type="text" id="eDesc" list="descSuggestions" style="width:100%"/></div>
+   <div class="form-group"><label>Amount (₹)</label><input type="number" id="eAmt" style="width:100%"/></div>
+   <div class="form-group"><label>Mode</label><select id="eMode" style="width:100%"><option>Online</option><option>Cash</option></select></div>
+  </div>
+  <div class="modal-footer">
+   <button class="btn" onclick="closeEdit()">Cancel</button>
+   <button class="btn btn-primary" onclick="saveEdit()">Save</button>
+  </div>
+ </div>
+</div>
+
+<div class="shell">
+ <nav class="sidebar">
+  <div class="logo">💰 <span>Budget Tracker</span><button class="logo-close" onclick="closeSidebar()">✕</button></div>
+  <div class="nav-label">Views</div>
+  <button class="nav-btn active" onclick="showPage('dashboard',this)">📊 Dashboard</button>
+  <button class="nav-btn" onclick="showPage('expenses',this)">📋 All Expenses</button>
+  <button class="nav-btn" onclick="showPage('compare',this)">📈 Compare Years</button>
+  <div class="nav-label" style="margin-top:14px">Years &amp; Months</div>
+  <div id="monthNavContainer"></div>
+  <button class="nav-btn" style="color:var(--accent);font-weight:600" onclick="addYear()">＋ Add Year</button>
+  <div class="sidebar-footer">
+   <button class="btn btn-primary" onclick="syncToGitHub()">🔄 Sync to GitHub</button>
+   <button class="btn btn-green" onclick="exportExcel()">⬇ Export Excel</button>
+   <button class="btn btn-amber" onclick="openImport()">⬆ Import Excel</button>
+   <button class="btn btn-primary" id="sidebarConnectBtn" onclick="showConnectGate()">🔗 Connect to GitHub</button>
+   <button class="btn" onclick="disconnectGithub()" style="color:var(--red)">⎋ Disconnect</button>
+  </div>
+ </nav>
+
+ <div class="main">
+  <div class="topbar">
+   <div class="topbar-left">
+    <button class="hamburger" onclick="openSidebar()" aria-label="Open menu">☰</button>
+    <select id="yearSelect" onchange="onYearChange(this.value)" style="min-height:30px;padding:4px 22px 4px 8px;font-size:12px;flex-shrink:0;width:auto"></select>
+    <div class="topbar-title" id="topbarTitle">Dashboard</div>
+    <span id="syncIndicator" onclick="if(!ghConfig)showConnectGate()" style="font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;cursor:pointer"></span>
+    <div style="position:relative;flex-shrink:0">
+     <button class="btn btn-icon" onclick="toggleNotifPanel()" title="Recent updates" style="position:relative">🔔<span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:15px;height:15px;border-radius:99px;align-items:center;justify-content:center;padding:0 3px"></span></button>
+     <div id="notifPanel" style="display:none;position:absolute;top:38px;left:0;width:300px;max-width:80vw;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:60;overflow:hidden">
+      <div style="padding:9px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">Recent Updates</div>
+      <div id="notifList" style="max-height:280px;overflow-y:auto"></div>
+     </div>
+    </div>
+   </div>
+   <div class="topbar-right">
+    <div class="budget-wrap"><label>Budget ₹</label><input type="number" id="globalBudget" value="50000" min="0" step="1000" style="width:90px" onchange="saveBudget()"/></div>
+    <button class="btn btn-primary" onclick="syncToGitHub()">🔄 Sync</button>
+    <button class="btn btn-amber" onclick="openImport()">⬆ Import</button>
+    <button class="btn btn-green" onclick="exportExcel()">⬇ Export</button>
+   </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+   <div id="dashAlert" class="alert"></div>
+   <div class="kpi-grid" id="kpiGrid"></div>
+   <div class="charts-grid">
+    <div class="chart-card chart-wide">
+     <h3>Monthly Spending vs Budget</h3>
+     <div class="chart-wrap-tall"><canvas id="barMonthly"></canvas></div>
+    </div>
+    <div class="chart-card">
+     <h3>Category Split — All Months</h3>
+     <div class="chart-wrap donut-wrap" style="height:230px">
+      <canvas id="donutAll"></canvas>
+      <div class="donut-center"><div class="big" id="donutTotal">₹0</div><div class="small">total</div></div>
+     </div>
+     <div class="cat-legend" id="catLegend"></div>
+    </div>
+    <div class="chart-card">
+     <h3>Category Trends Month-over-Month</h3>
+     <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
+    </div>
+    <div class="chart-card chart-wide">
+     <h3>Category % Share by Month</h3>
+     <div class="chart-wrap-tall"><canvas id="pctBar"></canvas></div>
+    </div>
+    <div class="chart-card chart-wide">
+     <h3>Category Spending Breakdown — Stacked Bar (₹)</h3>
+     <div class="chart-wrap-tall"><canvas id="stackedBar"></canvas></div>
+    </div>
+
+    <!-- NEW CHART 1: Cash vs Online monthly -->
+    <div class="chart-card chart-wide">
+     <h3>💳 Cash vs Online — Monthly Comparison</h3>
+     <div class="chart-wrap-tall"><canvas id="cashOnlineMonthly"></canvas></div>
+    </div>
+
+    <!-- NEW CHART 2: Cash vs Online category wise -->
+    <div class="chart-card chart-wide">
+     <h3>🏷 Cash vs Online — Category Comparison</h3>
+     <div class="chart-wrap-tall"><canvas id="cashOnlineCat"></canvas></div>
+    </div>
+
+    <div class="chart-card chart-wide">
+     <div class="chart-controls">
+      <h3>📝 Spend by Description — Monthly</h3>
+      <div class="ctrl-row">
+       <div class="ctrl-group"><label>Category</label><select id="descCatFilter" onchange="populateDescFilter()"></select></div>
+       <div class="ctrl-group"><label>Description</label><select id="descFilter" onchange="renderDescChart()"><option value="">— All descriptions —</option></select></div>
+       <div class="ctrl-group"><label>Chart type</label><select id="descChartType" onchange="renderDescChart()"><option value="bar">Bar</option><option value="line">Line</option></select></div>
+      </div>
+     </div>
+     <div class="chart-wrap-tall"><canvas id="descMonthlyChart"></canvas></div>
+    </div>
+
+    <div class="chart-card chart-wide">
+     <div class="chart-controls">
+      <h3>🎛 Custom Chart Builder</h3>
+      <div class="ctrl-row">
+       <div class="ctrl-group"><label>X-Axis</label><select id="customX" onchange="renderCustomChart()"><option value="month">Month</option><option value="category">Category</option><option value="mode">Mode</option></select></div>
+       <div class="ctrl-group"><label>Metric</label><select id="customMetric" onchange="renderCustomChart()"><option value="total">Total Spend (₹)</option><option value="count">No. of Transactions</option><option value="avg">Avg per Transaction</option><option value="cash">Cash Spend (₹)</option><option value="online">Online Spend (₹)</option></select></div>
+       <div class="ctrl-group"><label>Filter Category</label><select id="customCatFilter" onchange="renderCustomChart()"><option value="">All categories</option></select></div>
+       <div class="ctrl-group"><label>Chart type</label><select id="customChartType" onchange="renderCustomChart()"><option value="bar">Bar</option><option value="line">Line</option><option value="doughnut">Doughnut</option><option value="polarArea">Polar Area</option></select></div>
+      </div>
+     </div>
+     <div id="customChartInfo" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+     <div class="chart-wrap-tall"><canvas id="customChart"></canvas></div>
+    </div>
+
+   </div>
+   <div class="summary-card">
+    <table><thead><tr id="summaryHead"></tr></thead><tbody id="summaryBody"></tbody></table>
+   </div>
+  </div>
+
+  <!-- ALL EXPENSES -->
+  <div class="page" id="page-expenses">
+   <div class="table-card">
+    <div class="table-toolbar">
+     <h3>All Expenses</h3>
+     <input type="text" id="searchAll" placeholder="Search…" style="width:160px" oninput="renderAllTable()"/>
+     <select id="filterCatAll" onchange="renderAllTable()"><option value="">All categories</option></select>
+     <select id="filterMonthAll" onchange="renderAllTable()"><option value="">All months</option></select>
+     <select id="filterYearAll" onchange="renderAllTable()"><option value="">All years</option></select>
+    </div>
+    <div class="table-scroll">
+     <table><thead><tr><th>Date</th><th>Year</th><th>Month</th><th>Category</th><th>Description</th><th>Amount</th><th>Mode</th><th></th></tr></thead>
+     <tbody id="allExpBody"></tbody></table>
+    </div>
+   </div>
+  </div>
+
+  <!-- COMPARE YEARS -->
+  <div class="page" id="page-compare">
+   <div class="kpi-grid" id="compareKpi"></div>
+   <div class="charts-grid">
+    <div class="chart-card chart-wide">
+     <h3>Total Spend by Year</h3>
+     <div class="chart-wrap-tall"><canvas id="cmpYearTotalBar"></canvas></div>
+    </div>
+    <div class="chart-card chart-wide">
+     <h3>Category Spend — Year Comparison</h3>
+     <div class="chart-wrap-tall"><canvas id="cmpCategoryBar"></canvas></div>
+    </div>
+    <div class="chart-card chart-wide">
+     <h3>Month-over-Month Trend — All Years Overlaid</h3>
+     <div class="chart-wrap-tall"><canvas id="cmpMonthlyLine"></canvas></div>
+    </div>
+    <div class="chart-card">
+     <h3>Cash vs Online — by Year</h3>
+     <div class="chart-wrap-tall"><canvas id="cmpCashOnline"></canvas></div>
+    </div>
+    <div class="chart-card">
+     <h3>Transactions &amp; Avg Spend — by Year</h3>
+     <div class="chart-wrap-tall"><canvas id="cmpTxnAvg"></canvas></div>
+    </div>
+   </div>
+   <div class="summary-card">
+    <table><thead><tr id="compareSummaryHead"></tr></thead><tbody id="compareSummaryBody"></tbody></table>
+   </div>
+  </div>
+
+  <!-- MONTH PAGE -->
+  <div class="page" id="page-month">
+   <div id="monthAlert" class="alert"></div>
+   <div class="kpi-grid" id="monthKpi"></div>
+   <div class="add-form">
+    <h3>Add Expense</h3>
+    <div class="form-row">
+     <div class="form-group"><label>Date</label><input type="date" id="newDate" style="width:100%"/></div>
+     <div class="form-group"><label>Category</label><select id="newCat" style="width:100%" onchange="populateDescSuggestions(this.value)"></select></div>
+     <div class="form-group"><label>Description</label><input type="text" id="newDesc" list="descSuggestions" placeholder="e.g. Swiggy" style="width:100%"/></div>
+     <div class="form-group"><label>Amount (₹)</label><input type="number" id="newAmt" placeholder="0" min="0" step="0.01" style="width:100%"/></div>
+     <div class="form-group"><label>Mode</label><select id="newMode" style="width:100%"><option>Online</option><option>Cash</option></select></div>
+     <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="addExpense()" style="width:100%;justify-content:center">+ Add</button></div>
+    </div>
+   </div>
+   <div class="charts-grid">
+    <div class="chart-card">
+     <h3 id="monthChartTitle">Category Breakdown</h3>
+     <div class="chart-wrap donut-wrap" style="height:220px">
+      <canvas id="monthDonut"></canvas>
+      <div class="donut-center"><div class="big" id="monthDonutTotal">₹0</div><div class="small">this month</div></div>
+     </div>
+     <div class="cat-legend" id="monthCatLegend"></div>
+    </div>
+    <div class="chart-card">
+     <h3>Daily Spending</h3>
+     <div class="chart-wrap"><canvas id="monthDailyBar"></canvas></div>
+    </div>
+   </div>
+   <div class="table-card">
+    <div class="table-toolbar">
+     <h3 id="monthTableTitle">Expenses</h3>
+     <input type="text" id="searchMonth" placeholder="Search…" style="width:150px" oninput="renderMonthTable()"/>
+     <select id="filterCatMonth" onchange="renderMonthTable()"><option value="">All categories</option></select>
+    </div>
+    <div class="table-scroll">
+     <table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Mode</th><th></th></tr></thead>
+     <tbody id="monthExpBody"></tbody></table>
+    </div>
+   </div>
+  </div>
+
+ </div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- Bottom nav for mobile -->
+<nav class="bottom-nav">
+ <div class="bottom-nav-inner">
+  <button class="bnav-btn active" id="bnav-dashboard" onclick="showPage('dashboard',null);setBnavActive('bnav-dashboard')"><span class="bicon">📊</span>Dashboard</button>
+  <button class="bnav-btn" id="bnav-expenses" onclick="showPage('expenses',null);setBnavActive('bnav-expenses')"><span class="bicon">📋</span>All</button>
+  <button class="bnav-btn" id="bnav-compare" onclick="showPage('compare',null);setBnavActive('bnav-compare')"><span class="bicon">📈</span>Compare</button>
+  <button class="bnav-btn" id="bnav-months" onclick="openSidebar()"><span class="bicon">🗓️</span>Months</button>
+ </div>
+</nav>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// CONSTANTS & SEED DATA
+// ═══════════════════════════════════════════════════════════════════════
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_DOT=['#38bdf8','#c084fc','#34d399','#6c8cff','#fbbf24','#f87171','#a78bfa','#fb923c','#f472b6','#4ade80','#818cf8','#facc15'];
+const CATS=['Food','Utilities','Healthcare','Rent','Misc','Transport','Shopping','Entertainment','Pujo','Travel'];
+const CAT_COLOR={Food:'#34d399',Utilities:'#fbbf24',Healthcare:'#f87171',Rent:'#6c8cff',Misc:'#94a3b8',Transport:'#fb923c',Shopping:'#f472b6',Entertainment:'#a78bfa',Pujo:'#eab308',Travel:'#2dd4bf'};
+const BASE_YEAR=2026;
+
+// Real 2026 expense data (imported from Budget_Tracker_20261.xlsx). Months not
+// present here (January, February) or with no rows (October–December) start blank.
+const SEED_2026={"March":[{"date":"2026-03-03","category":"Utilities","description":"JioFiber","amount":470.82,"mode":"Online"},{"date":"2026-03-03","category":"Shopping","description":"Amazon","amount":1050.35,"mode":"Online"},{"date":"2026-03-03","category":"Utilities","description":"House Help","amount":5000.0,"mode":"Online"},{"date":"2026-03-04","category":"Utilities","description":"Waste Removal","amount":150.0,"mode":"Cash"},{"date":"2026-03-05","category":"Healthcare","description":"Doctor's Fees","amount":500.0,"mode":"Online"},{"date":"2026-03-06","category":"Healthcare","description":"Ensure","amount":1092.0,"mode":"Online"},{"date":"2026-03-07","category":"Food","description":"Swiggy","amount":260.0,"mode":"Online"},{"date":"2026-03-09","category":"Food","description":"Swiggy","amount":146.0,"mode":"Online"},{"date":"2026-03-12","category":"Food","description":"Reliance","amount":66.0,"mode":"Online"},{"date":"2026-03-12","category":"Rent","description":"Home Loan","amount":12153.0,"mode":"Online"},{"date":"2026-03-13","category":"Healthcare","description":"Medicine","amount":9151.67,"mode":"Online"},{"date":"2026-03-14","category":"Shopping","description":"Amazon","amount":1666.0,"mode":"Online"},{"date":"2026-03-15","category":"Food","description":"Reliance","amount":115.0,"mode":"Online"},{"date":"2026-03-16","category":"Food","description":"Fish","amount":250.0,"mode":"Cash"},{"date":"2026-03-16","category":"Food","description":"Vegetables","amount":500.0,"mode":"Cash"},{"date":"2026-03-21","category":"Food","description":"Pulses, Rice, Tea","amount":790.0,"mode":"Cash"},{"date":"2026-03-22","category":"Food","description":"Vegetables","amount":85.0,"mode":"Cash"},{"date":"2026-03-22","category":"Food","description":"Reliance","amount":431.0,"mode":"Online"},{"date":"2026-03-22","category":"Food","description":"Fruits","amount":185.0,"mode":"Cash"},{"date":"2026-03-23","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-03-23","category":"Food","description":"Vegetables","amount":20.0,"mode":"Cash"},{"date":"2026-03-25","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-03-25","category":"Food","description":"Milk","amount":33.0,"mode":"Cash"},{"date":"2026-03-25","category":"Food","description":"Fish","amount":100.0,"mode":"Cash"},{"date":"2026-03-25","category":"Food","description":"Vegetables","amount":115.0,"mode":"Cash"},{"date":"2026-03-25","category":"Food","description":"Egg","amount":78.0,"mode":"Cash"},{"date":"2026-03-25","category":"Food","description":"Fruits","amount":80.0,"mode":"Cash"},{"date":"2026-03-28","category":"Pujo","description":"Flowers","amount":50.0,"mode":"Cash"},{"date":"2026-03-28","category":"Food","description":"Milk","amount":105.0,"mode":"Cash"},{"date":"2026-03-28","category":"Food","description":"Vegetables","amount":210.0,"mode":"Cash"},{"date":"2026-03-28","category":"Pujo","description":"Ponjika","amount":60.0,"mode":"Cash"},{"date":"2026-03-28","category":"Food","description":"Fruits","amount":100.0,"mode":"Cash"},{"date":"2026-03-28","category":"Food","description":"Sweets","amount":40.0,"mode":"Online"},{"date":"2026-03-29","category":"Food","description":"Fish","amount":200.0,"mode":"Cash"},{"date":"2026-03-29","category":"Food","description":"Vegetables","amount":105.0,"mode":"Cash"},{"date":"2026-03-31","category":"Healthcare","description":"Medicine","amount":37.0,"mode":"Cash"},{"date":"2026-03-31","category":"Food","description":"Vegetables","amount":20.0,"mode":"Cash"},{"date":"2026-03-31","category":"Food","description":"Milk","amount":66.0,"mode":"Cash"},{"date":"2026-03-31","category":"Food","description":"Fruits","amount":100.0,"mode":"Cash"}],"April":[{"date":"2026-03-06","category":"Entertainment","description":"Movie","amount":170.0,"mode":"Online"},{"date":"2026-03-25","category":"Food","description":"Fruits","amount":25.0,"mode":"Cash"},{"date":"2026-03-28","category":"Food","description":"Reliance","amount":207.0,"mode":"Online"},{"date":"2026-04-01","category":"Food","description":"Chicken","amount":200.0,"mode":"Cash"},{"date":"2026-04-02","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-04-03","category":"Food","description":"Fruits","amount":200.0,"mode":"Cash"},{"date":"2026-04-03","category":"Food","description":"Vegetables","amount":110.0,"mode":"Cash"},{"date":"2026-04-03","category":"Food","description":"Ghee","amount":400.0,"mode":"Cash"},{"date":"2026-04-03","category":"Food","description":"Sweets","amount":72.0,"mode":"Cash"},{"date":"2026-04-03","category":"Food","description":"Milk","amount":82.5,"mode":"Online"},{"date":"2026-04-03","category":"Utilities","description":"Waste Removal","amount":150.0,"mode":"Cash"},{"date":"2026-04-03","category":"Utilities","description":"House Help","amount":5000.0,"mode":"Online"},{"date":"2026-04-05","category":"Misc","description":"Food","amount":727.0,"mode":"Online"},{"date":"2026-04-06","category":"Food","description":"Fish","amount":320.0,"mode":"Cash"},{"date":"2026-04-06","category":"Food","description":"Milk","amount":66.0,"mode":"Cash"},{"date":"2026-04-06","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-04-08","category":"Food","description":"Milk","amount":107.2,"mode":"Online"},{"date":"2026-04-08","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-04-09","category":"Utilities","description":"JioFiber","amount":470.82,"mode":"Online"},{"date":"2026-04-09","category":"Transport","description":"Xoom 125 Policy","amount":1493.0,"mode":"Online"},{"date":"2026-04-10","category":"Utilities","description":"AC Installation","amount":1500.0,"mode":"Cash"},{"date":"2026-04-10","category":"Food","description":"Vegetables","amount":42.0,"mode":"Cash"},{"date":"2026-04-10","category":"Food","description":"Milk","amount":66.0,"mode":"Cash"},{"date":"2026-04-10","category":"Food","description":"Gobindo Bhog Rice","amount":80.0,"mode":"Cash"},{"date":"2026-04-11","category":"Food","description":"Vegetables","amount":160.0,"mode":"Cash"},{"date":"2026-04-11","category":"Food","description":"Fruits","amount":50.0,"mode":"Cash"},{"date":"2026-04-11","category":"Misc","description":"Food","amount":727.0,"mode":"Online"},{"date":"2026-04-11","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-04-12","category":"Food","description":"Spices","amount":43.0,"mode":"Cash"},{"date":"2026-04-12","category":"Food","description":"Fruits","amount":165.0,"mode":"Cash"},{"date":"2026-04-12","category":"Pujo","description":"Dhoopkathi","amount":130.0,"mode":"Online"},{"date":"2026-04-12","category":"Food","description":"Mayapur Prasad","amount":100.0,"mode":"Online"},{"date":"2026-04-12","category":"Entertainment","description":"Day Out","amount":1600.0,"mode":"Online"},{"date":"2026-04-13","category":"Rent","description":"Home Loan","amount":12153.0,"mode":"Online"},{"date":"2026-04-13","category":"Transport","description":"Xoom 125 Pollution","amount":100.0,"mode":"Cash"},{"date":"2026-04-13","category":"Transport","description":"Petrol","amount":344.0,"mode":"Online"},{"date":"2026-04-15","category":"Healthcare","description":"Medicine","amount":5001.0,"mode":"Online"},{"date":"2026-04-16","category":"Shopping","description":"Amazon","amount":1139.0,"mode":"Online"},{"date":"2026-04-17","category":"Food","description":"Swiggy","amount":795.0,"mode":"Online"},{"date":"2026-04-18","category":"Shopping","description":"Flipkart","amount":1057.0,"mode":"Online"},{"date":"2026-04-18","category":"Food","description":"Dhokla","amount":120.0,"mode":"Online"},{"date":"2026-04-18","category":"Pujo","description":"Flowers","amount":20.0,"mode":"Cash"},{"date":"2026-04-18","category":"Shopping","description":"Flipkart","amount":570.0,"mode":"Online"},{"date":"2026-04-18","category":"Food","description":"Dhokla","amount":120.0,"mode":"Online"},{"date":"2026-04-21","category":"Transport","description":"Petrol","amount":373.0,"mode":"Online"},{"date":"2026-04-22","category":"Food","description":"Milk","amount":58.0,"mode":"Online"},{"date":"2026-04-22","category":"Pujo","description":"Flowers+Sweets","amount":90.0,"mode":"Cash"},{"date":"2026-04-23","category":"Food","description":"Vegetables","amount":100.0,"mode":"Cash"},{"date":"2026-04-23","category":"Food","description":"Fish","amount":100.0,"mode":"Cash"},{"date":"2026-04-23","category":"Food","description":"Fruits","amount":100.0,"mode":"Cash"},{"date":"2026-04-23","category":"Food","description":"Reliance","amount":126.0,"mode":"Cash"},{"date":"2026-04-24","category":"Misc","description":"Ankit Marriage","amount":10000.0,"mode":"Online"},{"date":"2026-04-25","category":"Food","description":"Reliance","amount":648.0,"mode":"Online"},{"date":"2026-04-25","category":"Transport","description":"Petrol","amount":343.0,"mode":"Online"},{"date":"2026-04-26","category":"Food","description":"Vegetables","amount":165.0,"mode":"Cash"},{"date":"2026-04-26","category":"Food","description":"Fruits","amount":100.0,"mode":"Cash"},{"date":"2026-04-26","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-04-27","category":"Food","description":"Chicken+Eggs","amount":293.0,"mode":"Cash"},{"date":"2026-04-28","category":"Pujo","description":"Flowers","amount":10.0,"mode":"Cash"},{"date":"2026-04-28","category":"Food","description":"Curd","amount":60.0,"mode":"Cash"}],"May":[{"date":"2026-05-02","category":"Pujo","description":"Kali Puja","amount":212.0,"mode":"Cash"},{"date":"2026-05-02","category":"Utilities","description":"Waste Removal","amount":150.0,"mode":"Cash"},{"date":"2026-05-03","category":"Food","description":"Vegetables","amount":170.0,"mode":"Online"},{"date":"2026-05-03","category":"Food","description":"Fruits","amount":65.0,"mode":"Online"},{"date":"2026-05-03","category":"Utilities","description":"House Help","amount":5000.0,"mode":"Online"},{"date":"2026-05-04","category":"Shopping","description":"Flipkart","amount":829.0,"mode":"Online"},{"date":"2026-05-04","category":"Food","description":"Vegetables+Fish","amount":165.0,"mode":"Cash"},{"date":"2026-05-04","category":"Food","description":"Fruits","amount":100.0,"mode":"Cash"},{"date":"2026-05-04","category":"Shopping","description":"Flipkart","amount":4146.0,"mode":"Online"},{"date":"2026-05-04","category":"Food","description":"Milk+Biscuits","amount":100.0,"mode":"Online"},{"date":"2026-05-05","category":"Pujo","description":"Flowers","amount":20.0,"mode":"Cash"},{"date":"2026-05-07","category":"Pujo","description":"Flowers","amount":50.0,"mode":"Cash"},{"date":"2026-05-07","category":"Food","description":"Milk","amount":66.0,"mode":"Online"},{"date":"2026-05-09","category":"Food","description":"Vegetables","amount":290.0,"mode":"Cash"},{"date":"2026-05-10","category":"Food","description":"Vegetables+Fruits","amount":90.0,"mode":"Cash"},{"date":"2026-05-10","category":"Food","description":"Fish","amount":410.0,"mode":"Online"},{"date":"2026-05-10","category":"Transport","description":"Petrol","amount":328.0,"mode":"Online"},{"date":"2026-05-10","category":"Food","description":"Spices","amount":314.0,"mode":"Cash"},{"date":"2026-05-10","category":"Food","description":"Sweets","amount":80.0,"mode":"Cash"},{"date":"2026-05-11","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-05-11","category":"Rent","description":"Home Loan","amount":12153.0,"mode":"Online"},{"date":"2026-05-13","category":"Food","description":"Reliance","amount":344.0,"mode":"Online"},{"date":"2026-05-13","category":"Entertainment","description":"F1","amount":2267.0,"mode":"Online"},{"date":"2026-05-13","category":"Pujo","description":"Flowers","amount":50.0,"mode":"Cash"},{"date":"2026-05-13","category":"Transport","description":"Xoom 125 Service","amount":778.0,"mode":"Online"},{"date":"2026-05-13","category":"Food","description":"Swiggy","amount":200.0,"mode":"Online"},{"date":"2026-05-16","category":"Food","description":"Vegetables","amount":165.0,"mode":"Online"},{"date":"2026-05-16","category":"Food","description":"Fruits","amount":240.0,"mode":"Online"},{"date":"2026-05-16","category":"Food","description":"Reliance","amount":66.0,"mode":"Online"},{"date":"2026-05-16","category":"Healthcare","description":"Medicine","amount":293.0,"mode":"Online"},{"date":"2026-05-16","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-05-18","category":"Food","description":"Fish","amount":500.0,"mode":"Online"},{"date":"2026-05-18","category":"Transport","description":"Transport","amount":1235.0,"mode":"Online"},{"date":"2026-05-18","category":"Healthcare","description":"Doctor","amount":1500.0,"mode":"Cash"},{"date":"2026-05-18","category":"Healthcare","description":"Medicine","amount":8450.0,"mode":"Online"},{"date":"2026-05-20","category":"Food","description":"Reliance","amount":66.0,"mode":"Online"},{"date":"2026-05-21","category":"Food","description":"Vegetables+Egg","amount":163.0,"mode":"Cash"},{"date":"2026-05-23","category":"Food","description":"Vegetables","amount":80.0,"mode":"Cash"},{"date":"2026-05-23","category":"Food","description":"Fruits","amount":80.0,"mode":"Cash"},{"date":"2026-05-23","category":"Healthcare","description":"Arnica","amount":45.0,"mode":"Cash"},{"date":"2026-05-27","category":"Food","description":"Vegetables","amount":128.0,"mode":"Cash"},{"date":"2026-05-27","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-05-29","category":"Food","description":"Fruits+Egg","amount":195.0,"mode":"Cash"},{"date":"2026-05-29","category":"Food","description":"Flipkart","amount":677.0,"mode":"Online"},{"date":"2026-05-31","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-05-31","category":"Food","description":"Fruits","amount":120.0,"mode":"Cash"}],"June":[{"date":"2026-06-03","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-06-03","category":"Utilities","description":"Waste Removal","amount":150.0,"mode":"Cash"},{"date":"2026-06-03","category":"Utilities","description":"House Help","amount":5000.0,"mode":"Online"},{"date":"2026-06-04","category":"Food","description":"Fruits","amount":210.0,"mode":"Cash"},{"date":"2026-06-04","category":"Food","description":"Vegetables","amount":70.0,"mode":"Cash"},{"date":"2026-06-04","category":"Food","description":"Milk","amount":66.0,"mode":"Online"},{"date":"2026-06-04","category":"Food","description":"Milk","amount":66.0,"mode":"Online"},{"date":"2026-06-04","category":"Pujo","description":"Flowers","amount":50.0,"mode":"Cash"},{"date":"2026-06-04","category":"Shopping","description":"Flipkart","amount":1025.0,"mode":"Online"},{"date":"2026-06-06","category":"Food","description":"Fish+Chicken","amount":300.0,"mode":"Cash"},{"date":"2026-06-06","category":"Food","description":"Vegetables+Fruits","amount":150.0,"mode":"Cash"},{"date":"2026-06-06","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-06-07","category":"Food","description":"Vegetables","amount":220.0,"mode":"Cash"},{"date":"2026-06-07","category":"Transport","description":"Petrol","amount":357.0,"mode":"Online"},{"date":"2026-06-08","category":"Food","description":"Milk","amount":249.0,"mode":"Online"},{"date":"2026-06-09","category":"Food","description":"Egg+Fruits","amount":250.0,"mode":"Cash"},{"date":"2026-06-10","category":"Rent","description":"Home Loan","amount":12153.0,"mode":"Online"},{"date":"2026-06-12","category":"Utilities","description":"JioFiber","amount":470.82,"mode":"Online"},{"date":"2026-06-13","category":"Food","description":"Vegetables","amount":90.0,"mode":"Cash"},{"date":"2026-06-15","category":"Pujo","description":"Flowers","amount":20.0,"mode":"Cash"},{"date":"2026-06-16","category":"Food","description":"Milk+Egg","amount":174.0,"mode":"Cash"},{"date":"2026-06-17","category":"Food","description":"Fruits","amount":230.0,"mode":"Cash"},{"date":"2026-06-18","category":"Healthcare","description":"Medicine","amount":7868.0,"mode":"Online"},{"date":"2026-06-20","category":"Food","description":"Fruits+Vegetables+Milk","amount":329.0,"mode":"Cash"},{"date":"2026-06-20","category":"Entertainment","description":"Party","amount":3332.0,"mode":"Online"},{"date":"2026-06-20","category":"Pujo","description":"Flowers","amount":20.0,"mode":"Cash"},{"date":"2026-06-22","category":"Food","description":"Rice","amount":120.0,"mode":"Cash"},{"date":"2026-06-22","category":"Pujo","description":"Flowers","amount":20.0,"mode":"Cash"},{"date":"2026-06-23","category":"Food","description":"Milk+Fruits+Vegetables","amount":260.0,"mode":"Cash"},{"date":"2026-06-24","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-06-25","category":"Food","description":"Egg+Chana+Potato+Onion","amount":278.0,"mode":"Cash"},{"date":"2026-06-26","category":"Food","description":"Milk+Curd+Dalia","amount":150.0,"mode":"Online"},{"date":"2026-06-27","category":"Food","description":"Vegetables","amount":220.0,"mode":"Cash"},{"date":"2026-06-28","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-06-29","category":"Food","description":"Vegetables+Fish","amount":408.0,"mode":"Cash"},{"date":"2026-06-30","category":"Food","description":"Reliance","amount":387.0,"mode":"Online"}],"July":[{"date":"2026-07-01","category":"Food","description":"Egg+Mangoes","amount":230.0,"mode":"Cash"},{"date":"2026-07-01","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-07-02","category":"Food","description":"Milk","amount":95.0,"mode":"Online"},{"date":"2026-07-02","category":"Food","description":"Swiggy","amount":904.0,"mode":"Online"},{"date":"2026-07-03","category":"Utilities","description":"House Help","amount":5000.0,"mode":"Online"},{"date":"2026-07-04","category":"Utilities","description":"Gas Burner","amount":450.0,"mode":"Online"},{"date":"2026-07-04","category":"Food","description":"Vegetables+Banana","amount":230.0,"mode":"Cash"},{"date":"2026-07-04","category":"Pujo","description":"Flowers","amount":20.0,"mode":"Cash"},{"date":"2026-07-04","category":"Utilities","description":"Waste Removal","amount":150.0,"mode":"Cash"},{"date":"2026-07-05","category":"Food","description":"Fruits","amount":100.0,"mode":"Cash"},{"date":"2026-07-05","category":"Food","description":"Spice+Pulses","amount":201.0,"mode":"Cash"},{"date":"2026-07-05","category":"Food","description":"Reliance","amount":235.0,"mode":"Online"},{"date":"2026-07-05","category":"Transport","description":"Petrol","amount":144.0,"mode":"Cash"},{"date":"2026-07-06","category":"Utilities","description":"Fuse Change+Electrician","amount":1010.0,"mode":"Online"},{"date":"2026-07-08","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-07-10","category":"Rent","description":"Home Loan","amount":12153.0,"mode":"Online"},{"date":"2026-07-11","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-07-11","category":"Food","description":"Vegetables","amount":130.0,"mode":"Cash"},{"date":"2026-07-12","category":"Food","description":"Fruits","amount":280.0,"mode":"Cash"},{"date":"2026-07-12","category":"Food","description":"Milk","amount":68.0,"mode":"Cash"},{"date":"2026-07-12","category":"Misc","description":"Macbook","amount":96000.0,"mode":"Online"},{"date":"2026-07-13","category":"Food","description":"Fish","amount":115.0,"mode":"Cash"},{"date":"2026-07-13","category":"Food","description":"Egg","amount":125.0,"mode":"Cash"},{"date":"2026-07-15","category":"Food","description":"Reliance","amount":103.0,"mode":"Online"},{"date":"2026-07-16","category":"Food","description":"Fish","amount":170.0,"mode":"Cash"},{"date":"2026-07-17","category":"Food","description":"Milk","amount":68.0,"mode":"Online"},{"date":"2026-07-18","category":"Food","description":"Fruits","amount":270.0,"mode":"Cash"},{"date":"2026-07-18","category":"Food","description":"Vegetables","amount":160.0,"mode":"Cash"},{"date":"2026-07-18","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-07-20","category":"Food","description":"Milk","amount":64.0,"mode":"Online"},{"date":"2026-07-21","category":"Food","description":"Fruits","amount":210.0,"mode":"Cash"},{"date":"2026-07-21","category":"Food","description":"Fish","amount":260.0,"mode":"Cash"},{"date":"2026-07-22","category":"Healthcare","description":"Medicine","amount":7996.0,"mode":"Online"},{"date":"2026-07-22","category":"Pujo","description":"Flower","amount":50.0,"mode":"Cash"},{"date":"2026-07-22","category":"Shopping","description":"Flipkart","amount":2141.0,"mode":"Online"},{"date":"2026-07-22","category":"Utilities","description":"Gas","amount":968.0,"mode":"Online"},{"date":"2026-07-25","category":"Transport","description":"Xoom 125 Disc Pad Change","amount":389.0,"mode":"Online"},{"date":"2026-07-25","category":"Transport","description":"Petrol","amount":152.0,"mode":"Online"},{"date":"2026-07-26","category":"Food","description":"Vegetables","amount":140.0,"mode":"Cash"},{"date":"2026-07-26","category":"Food","description":"Fruits","amount":130.0,"mode":"Cash"},{"date":"2026-07-26","category":"Pujo","description":"Flower","amount":50.0,"mode":"Cash"},{"date":"2026-07-26","category":"Food","description":"Rice","amount":174.0,"mode":"Cash"},{"date":"2026-07-27","category":"Food","description":"Milk+Walnuts","amount":417.0,"mode":"Online"},{"date":"2026-07-27","category":"Food","description":"Fish , Eggs","amount":305.0,"mode":"Cash"},{"date":"2026-07-28","category":"Food","description":"Fruits","amount":140.0,"mode":"Cash"},{"date":"2026-07-28","category":"Food","description":"Milk","amount":102.0,"mode":"Cash"},{"date":"2026-07-29","category":"Pujo","description":"Pujo Ingredients","amount":226.0,"mode":"Cash"}],"August":[{"date":"2026-08-01","category":"Food","description":"Vegetables","amount":200.0,"mode":"Cash"},{"date":"2026-08-01","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-08-02","category":"Misc","description":"IT Filing","amount":2000.0,"mode":"Online"},{"date":"2026-08-02","category":"Utilities","description":"Waste Removal","amount":150.0,"mode":"Cash"},{"date":"2026-08-03","category":"Pujo","description":"Flowers","amount":50.0,"mode":"Cash"},{"date":"2026-08-03","category":"Food","description":"Fish","amount":210.0,"mode":"Cash"},{"date":"2026-08-03","category":"Food","description":"Egg","amount":100.0,"mode":"Cash"},{"date":"2026-08-05","category":"Food","description":"Milk","amount":130.0,"mode":"Online"},{"date":"2026-08-05","category":"Pujo","description":"Flowers","amount":40.0,"mode":"Cash"},{"date":"2026-08-06","category":"Food","description":"Vegetables","amount":80.0,"mode":"Cash"},{"date":"2026-08-06","category":"Utilities","description":"House Help","amount":5000.0,"mode":"Online"},{"date":"2026-08-06","category":"Food","description":"Chicken","amount":200.0,"mode":"Cash"},{"date":"2026-08-06","category":"Food","description":"Fruits","amount":70.0,"mode":"Cash"},{"date":"2026-08-07","category":"Food","description":"Vegetables","amount":68.0,"mode":"Cash"},{"date":"2026-08-07","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-08-08","category":"Food","description":"Vegetables","amount":180.0,"mode":"Cash"},{"date":"2026-08-08","category":"Food","description":"Fish","amount":150.0,"mode":"Cash"},{"date":"2026-08-09","category":"Pujo","description":"Sandalwood","amount":350.0,"mode":"Online"},{"date":"2026-08-09","category":"Food","description":"Pulses","amount":323.0,"mode":"Cash"},{"date":"2026-08-09","category":"Pujo","description":"Flower","amount":40.0,"mode":"Cash"},{"date":"2026-08-09","category":"Transport","description":"Petrol","amount":150.0,"mode":"Online"},{"date":"2026-08-10","category":"Rent","description":"Home Loan","amount":12153.0,"mode":"Online"},{"date":"2026-08-10","category":"Food","description":"Eggs","amount":100.0,"mode":"Cash"},{"date":"2026-08-12","category":"Food","description":"Milk","amount":68.0,"mode":"Online"},{"date":"2026-08-12","category":"Utilities","description":"Sweets","amount":60.0,"mode":"Cash"},{"date":"2026-08-12","category":"Pujo","description":"Flowers","amount":50.0,"mode":"Cash"},{"date":"2026-08-14","category":"Food","description":"Milk","amount":34.0,"mode":"Online"},{"date":"2026-08-14","category":"Pujo","description":"Flower","amount":30.0,"mode":"Cash"},{"date":"2026-08-15","category":"Transport","description":"Petrol","amount":214.0,"mode":"Online"},{"date":"2026-08-16","category":"Food","description":"Vegetables","amount":130.0,"mode":"Cash"},{"date":"2026-08-16","category":"Food","description":"Fruits","amount":80.0,"mode":"Cash"},{"date":"2026-08-16","category":"Food","description":"Milk","amount":130.0,"mode":"Online"},{"date":"2026-08-18","category":"Pujo","description":"Pujo Sweets","amount":100.0,"mode":"Cash"},{"date":"2026-08-19","category":"Food","description":"Milk","amount":68.0,"mode":"Online"},{"date":"2026-08-19","category":"Pujo","description":"Flowers","amount":50.0,"mode":"Cash"},{"date":"2026-08-19","category":"Food","description":"Vegetables","amount":61.0,"mode":"Cash"},{"date":"2026-08-19","category":"Food","description":"Egg+Chicken","amount":250.0,"mode":"Cash"},{"date":"2026-08-19","category":"Food","description":"Rice","amount":168.0,"mode":"Online"},{"date":"2026-08-21","category":"Food","description":"Milk","amount":68.0,"mode":"Online"},{"date":"2026-08-21","category":"Pujo","description":"Flowers","amount":30.0,"mode":"Cash"},{"date":"2026-08-22","category":"Food","description":"Milk","amount":68.0,"mode":"Online"},{"date":"2026-08-22","category":"Food","description":"Fruits","amount":110.0,"mode":"Cash"},{"date":"2026-08-22","category":"Food","description":"Ghee","amount":400.0,"mode":"Online"},{"date":"2026-08-22","category":"Food","description":"Vegetables","amount":80.0,"mode":"Cash"},{"date":"2026-08-23","category":"Food","description":"Vegetables","amount":60.0,"mode":"Cash"},{"date":"2026-08-23","category":"Food","description":"Fish","amount":150.0,"mode":"Cash"},{"date":"2026-08-24","category":"Pujo","description":"Flower","amount":40.0,"mode":"Cash"},{"date":"2026-08-24","category":"Healthcare","description":"Medicine","amount":7213.0,"mode":"Online"},{"date":"2026-08-25","category":"Food","description":"Milk","amount":68.0,"mode":"Cash"},{"date":"2026-08-25","category":"Food","description":"Vegetables","amount":60.0,"mode":"Cash"},{"date":"2026-08-25","category":"Food","description":"Egg+Chicken","amount":253.0,"mode":"Cash"},{"date":"2026-08-25","category":"Food","description":"Fruits","amount":150.0,"mode":"Cash"},{"date":"2026-08-26","category":"Pujo","description":"Flower","amount":50.0,"mode":"Cash"},{"date":"2026-08-26","category":"Healthcare","description":"Medicine","amount":195.0,"mode":"Online"},{"date":"2026-08-27","category":"Food","description":"Sweets, Milk","amount":300.0,"mode":"Online"},{"date":"2026-08-27","category":"Entertainment","description":"Youtube","amount":299.0,"mode":"Online"},{"date":"2026-08-28","category":"Food","description":"Rakhi Food","amount":1889.0,"mode":"Online"},{"date":"2026-08-30","category":"Pujo","description":"Flowers","amount":20.0,"mode":"Cash"},{"date":"2026-08-30","category":"Food","description":"Vegetables","amount":220.0,"mode":"Cash"},{"date":"2026-08-30","category":"Food","description":"Fruits","amount":30.0,"mode":"Cash"},{"date":"2026-08-31","category":"Food","description":"Fish+Milk","amount":268.0,"mode":"Cash"},{"date":"2026-08-31","category":"Pujo","description":"Flower","amount":30.0,"mode":"Cash"}],"September":[{"date":"2026-09-02","category":"Food","description":"Milk","amount":68.0,"mode":"Online"},{"date":"2026-09-02","category":"Food","description":"Fruits","amount":65.0,"mode":"Cash"},{"date":"2026-09-02","category":"Food","description":"Fish","amount":100.0,"mode":"Cash"},{"date":"2026-09-02","category":"Utilities","description":"Electric Bill","amount":2000.0,"mode":"Online"},{"date":"2026-09-03","category":"Food","description":"Swwets+Dhokla","amount":200.0,"mode":"Cash"},{"date":"2026-09-03","category":"Pujo","description":"Flower","amount":20.0,"mode":"Cash"},{"date":"2026-09-05","category":"Food","description":"Vegetables","amount":95.0,"mode":"Cash"},{"date":"2026-09-05","category":"Pujo","description":"Flower","amount":20.0,"mode":"Cash"},{"date":"2026-09-05","category":"Utilities","description":"House Help","amount":5000.0,"mode":"Online"},{"date":"2026-09-06","category":"Healthcare","description":"Neethlin","amount":140.0,"mode":"Cash"},{"date":"2026-09-07","category":"Food","description":"Milk","amount":60.0,"mode":"Online"},{"date":"2026-09-07","category":"Pujo","description":"Flower","amount":30.0,"mode":"Cash"},{"date":"2026-09-08","category":"Food","description":"Vegetables","amount":80.0,"mode":"Cash"},{"date":"2026-09-08","category":"Food","description":"Fish","amount":60.0,"mode":"Cash"},{"date":"2026-09-08","category":"Food","description":"Egg+Chicken","amount":300.0,"mode":"Cash"},{"date":"2026-09-09","category":"Pujo","description":"Flower","amount":50.0,"mode":"Cash"},{"date":"2026-09-09","category":"Food","description":"Milk","amount":108.0,"mode":"Online"},{"date":"2026-09-10","category":"Utilities","description":"JioFiber","amount":471.0,"mode":"Online"},{"date":"2026-09-10","category":"Rent","description":"Home Loan","amount":12153.0,"mode":"Online"},{"date":"2026-09-10","category":"Food","description":"Sweets","amount":90.0,"mode":"Cash"},{"date":"2026-09-10","category":"Food","description":"Milk","amount":175.0,"mode":"Online"},{"date":"2026-09-10","category":"Entertainment","description":"Zee5","amount":799.0,"mode":"Online"},{"date":"2026-09-12","category":"Food","description":"Vegetables+Fruits","amount":280.0,"mode":"Cash"},{"date":"2026-09-12","category":"Pujo","description":"Flower","amount":30.0,"mode":"Cash"},{"date":"2026-09-13","category":"Food","description":"Rice","amount":120.0,"mode":"Online"},{"date":"2026-09-13","category":"Food","description":"Milk+Oats+Others","amount":424.0,"mode":"Online"},{"date":"2026-09-13","category":"Transport","description":"Petrol","amount":347.0,"mode":"Online"},{"date":"2026-09-14","category":"Transport","description":"Hospital To and Fro","amount":1252.0,"mode":"Online"},{"date":"2026-09-14","category":"Healthcare","description":"Doctor's Fees","amount":1500.0,"mode":"Online"},{"date":"2026-09-15","category":"Food","description":"Milk","amount":68.0,"mode":"Cash"},{"date":"2026-09-15","category":"Healthcare","description":"Medicine","amount":9905.0,"mode":"Online"},{"date":"2026-09-15","category":"Food","description":"Vegetables","amount":60.0,"mode":"Cash"},{"date":"2026-09-15","category":"Food","description":"Chicken+Egg","amount":300.0,"mode":"Cash"},{"date":"2026-09-16","category":"Food","description":"Milk","amount":34.0,"mode":"Online"},{"date":"2026-09-16","category":"Pujo","description":"Flower","amount":60.0,"mode":"Cash"},{"date":"2026-09-17","category":"Transport","description":"Xoom 125 Service","amount":534.0,"mode":"Online"},{"date":"2026-09-17","category":"Food","description":"Idlygo","amount":177.0,"mode":"Online"},{"date":"2026-09-19","category":"Food","description":"Vegetables","amount":220.0,"mode":"Cash"},{"date":"2026-09-19","category":"Food","description":"Milk","amount":68.0,"mode":"Cash"},{"date":"2026-09-19","category":"Pujo","description":"Flower","amount":30.0,"mode":"Cash"},{"date":"2026-09-20","category":"Food","description":"Fish","amount":280.0,"mode":"Cash"},{"date":"2026-09-20","category":"Food","description":"Vegetables+Fruits","amount":170.0,"mode":"Online"},{"date":"2026-09-21","category":"Pujo","description":"Flower","amount":40.0,"mode":"Cash"},{"date":"2026-09-21","category":"Food","description":"Milk, Oil, Misc","amount":495.0,"mode":"Online"},{"date":"2026-09-22","category":"Food","description":"Chicken+Eggs","amount":300.0,"mode":"Cash"},{"date":"2026-09-22","category":"Pujo","description":"Candles","amount":55.0,"mode":"Cash"},{"date":"2026-09-23","category":"Food","description":"Milk","amount":68.0,"mode":"Online"},{"date":"2026-09-23","category":"Pujo","description":"Flower","amount":50.0,"mode":"Cash"}],"October":[],"November":[],"December":[]};
+
+// ═══════════════════════════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════════════════════════
+function pad(n){return String(n).padStart(2,'0');}
+function daysInMonth(year,monthIdx){return new Date(year,monthIdx+1,0).getDate();}
+function genBlanksForMonth(year,month){
+  const mi=MONTHS.indexOf(month);
+  const nd=daysInMonth(year,mi);
+  const rows=[];
+  for(let d=1;d<=nd;d++){
+    const ds=`${year}-${pad(mi+1)}-${pad(d)}`;
+    rows.push({date:ds,category:'',description:'',amount:0,mode:''});
+    rows.push({date:ds,category:'',description:'',amount:0,mode:''});
+  }
+  return rows;
+}
+function blankYear(year){
+  const y={};
+  MONTHS.forEach(m=>{y[m]=genBlanksForMonth(year,m).map((r,i)=>({...r,id:year+'_'+m+'_b'+i}));});
+  return y;
+}
+function freshSeedDB(){
+  const d={years:[BASE_YEAR],budget:50000,expenses:{}};
+  d.expenses[BASE_YEAR]=blankYear(BASE_YEAR);
+  Object.entries(SEED_2026).forEach(([m,rows])=>{
+    if(rows.length){
+      d.expenses[BASE_YEAR][m]=rows.map((r,i)=>({...r,id:BASE_YEAR+'_'+m+'_'+i}));
+    }
+  });
+  return d;
+}
+// No localStorage anywhere — DB lives only in memory for this tab, backed by
+// a file in a GitHub repo (encrypted client-side before it's ever committed).
+// Everything below is null until the person connects via the gate screen.
+let DB=null;
+let currentYear=null;
+let currentMonth='March';
+let ghConfig=null;      // {token, owner, repo, branch, path, passphrase} — memory only, never persisted
+let ghFileSha=null;     // sha of the file as last loaded/synced, required by GitHub's Contents API for updates
+let dirty=false;        // true when there are edits not yet pushed to GitHub
+function saveData(){markDirty();}
+function markDirty(){dirty=true;updateSyncIndicator();}
+
+// ── Client-side encryption (AES-256-GCM, key derived from your passphrase via
+// PBKDF2). The repo can stay public; the committed file is unreadable without
+// the passphrase, which is never sent to GitHub or stored anywhere.
+function bufToBase64(buf){
+  const bytes=new Uint8Array(buf);let binary='';const chunk=0x8000;
+  for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
+  return btoa(binary);
+}
+function base64ToBuf(b64){
+  const binary=atob(b64);const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return bytes;
+}
+async function deriveKey(passphrase,salt){
+  const enc=new TextEncoder();
+  const keyMaterial=await crypto.subtle.importKey('raw',enc.encode(passphrase),{name:'PBKDF2'},false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:150000,hash:'SHA-256'},keyMaterial,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function encryptBytes(data,passphrase){
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await deriveKey(passphrase,salt);
+  const bytes=data instanceof Uint8Array?data:new Uint8Array(data);
+  const ciphertext=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes);
+  const payload=new Uint8Array(salt.length+iv.length+ciphertext.byteLength);
+  payload.set(salt,0);payload.set(iv,salt.length);payload.set(new Uint8Array(ciphertext),salt.length+iv.length);
+  return bufToBase64(payload.buffer);
+}
+async function decryptBytes(b64,passphrase){
+  const raw=base64ToBuf(b64);
+  const salt=raw.slice(0,16),iv=raw.slice(16,28),ciphertext=raw.slice(28);
+  const key=await deriveKey(passphrase,salt);
+  const plaintext=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ciphertext);
+  return new Uint8Array(plaintext);
+}
+
+// ── GitHub Contents API ──
+const GH_API='https://api.github.com';
+function encodePath(p){return p.split('/').map(encodeURIComponent).join('/');}
+function ghHeaders(){return{'Authorization':'token '+ghConfig.token,'Accept':'application/vnd.github+json'};}
+async function ghGetFile(){
+  const url=`${GH_API}/repos/${ghConfig.owner}/${ghConfig.repo}/contents/${encodePath(ghConfig.path)}?ref=${encodeURIComponent(ghConfig.branch)}`;
+  const res=await fetch(url,{headers:ghHeaders()});
+  if(res.status===404){ghFileSha=null;return null;}
+  if(!res.ok){const b=await res.json().catch(()=>({}));throw Object.assign(new Error(`GitHub error ${res.status}: ${b.message||res.statusText}`),{status:res.status});}
+  const json=await res.json();
+  ghFileSha=json.sha;
+  return (json.content||'').replace(/\n/g,'');
+}
+async function ghPutFile(b64content,message){
+  const url=`${GH_API}/repos/${ghConfig.owner}/${ghConfig.repo}/contents/${encodePath(ghConfig.path)}`;
+  const body={message,content:b64content,branch:ghConfig.branch};
+  if(ghFileSha)body.sha=ghFileSha;
+  const res=await fetch(url,{method:'PUT',headers:{...ghHeaders(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!res.ok){const b=await res.json().catch(()=>({}));throw Object.assign(new Error(`GitHub error ${res.status}: ${b.message||res.statusText}`),{status:res.status});}
+  const json=await res.json();
+  ghFileSha=json.content.sha;
+  return json;
+}
+
+function updateSyncIndicator(){
+  const el=document.getElementById('syncIndicator');if(!el)return;
+  if(!ghConfig){el.textContent='🔌 Not connected';el.style.color='var(--muted)';return;}
+  el.textContent=dirty?'● Unsynced changes':'✓ Synced';
+  el.style.color=dirty?'var(--amber)':'var(--green)';
+}
+
+// ── Notifications — a running log of the last 5 sync attempts (pass/fail/pending) ──
+let notifications=[];
+let notifSeq=0;
+function timeAgo(ts){
+  const s=Math.floor((Date.now()-ts)/1000);
+  if(s<5)return'just now';
+  if(s<60)return s+'s ago';
+  const m=Math.floor(s/60);if(m<60)return m+'m ago';
+  const h=Math.floor(m/60);if(h<24)return h+'h ago';
+  return Math.floor(h/24)+'d ago';
+}
+function addNotification(action){
+  const n={id:++notifSeq,ts:Date.now(),action,status:'pending',detail:'Syncing…'};
+  notifications.unshift(n);
+  notifications=notifications.slice(0,5);
+  renderNotifications();
+  return n.id;
+}
+function updateNotification(id,status,detail){
+  const n=notifications.find(x=>x.id===id);
+  if(n){n.status=status;n.detail=detail;n.ts=Date.now();}
+  renderNotifications();
+}
+function renderNotifications(){
+  const list=document.getElementById('notifList');
+  if(list){
+    list.innerHTML=notifications.length?notifications.map(n=>{
+      const icon=n.status==='pass'?'✅':n.status==='fail'?'❌':'⏳';
+      const color=n.status==='pass'?'var(--green)':n.status==='fail'?'var(--red)':'var(--amber)';
+      return`<div style="padding:9px 14px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+          <span style="font-size:12px;font-weight:600;color:${color}">${icon} ${n.action}</span>
+          <span style="font-size:10px;color:var(--muted);white-space:nowrap;flex-shrink:0">${timeAgo(n.ts)}</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${n.detail}</div>
+      </div>`;
+    }).join(''):`<div style="padding:20px 14px;color:var(--muted);font-size:12px;text-align:center">No updates yet — changes you make will show up here once synced.</div>`;
+  }
+  const badge=document.getElementById('notifBadge');
+  if(badge){
+    const open=notifications.filter(n=>n.status!=='pass').length;
+    if(open>0){badge.textContent=open;badge.style.display='flex';}else{badge.style.display='none';}
+  }
+}
+function toggleNotifPanel(){
+  const p=document.getElementById('notifPanel');
+  const willOpen=p.style.display!=='block';
+  p.style.display=willOpen?'block':'none';
+  if(willOpen)renderNotifications();
+}
+document.addEventListener('click',e=>{
+  const p=document.getElementById('notifPanel');
+  if(!p||p.style.display!=='block')return;
+  if(!p.contains(e.target)&&e.target.closest&&!e.target.closest('[onclick="toggleNotifPanel()"]')){
+    p.style.display='none';
+  }
+});
+
+async function syncToGitHub(actionLabel){
+  actionLabel=actionLabel||'Manual sync';
+  if(!ghConfig){toast('Not connected to GitHub.','#f87171');return;}
+  const notifId=addNotification(actionLabel);
+  const el=document.getElementById('syncIndicator');
+  if(el){el.textContent='Syncing…';el.style.color='var(--muted)';}
+  try{
+    const wb=buildWorkbook();
+    const arrBuf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const b64=await encryptBytes(arrBuf,ghConfig.passphrase);
+    await ghPutFile(b64,'Update budget data');
+    dirty=false;updateSyncIndicator();
+    updateNotification(notifId,'pass','Synced to GitHub ✓');
+    cacheSnapshot();
+    toast('✓ Synced to GitHub');
+  }catch(err){
+    console.error(err);
+    if(err.status===409){
+      updateNotification(notifId,'fail','Conflict — a newer version exists on GitHub');
+      if(el){el.textContent='⚠ Conflict — not synced';el.style.color='var(--red)';}
+      if(confirm('The file on GitHub has changed since you last loaded it (edited from another device?). Reload the latest version now? This discards your unsynced local changes.\n\nCancel to keep editing here and try Sync again later.')){
+        await reloadFromGitHub();
+      }
+    }else{
+      updateNotification(notifId,'fail',err.message||'Unknown error');
+      if(el){el.textContent='❌ Sync failed';el.style.color='var(--red)';}
+      toast('Sync failed: '+err.message,'#f87171');
+    }
+  }
+}
+async function reloadFromGitHub(){
+  try{
+    const b64=await ghGetFile();
+    if(b64){
+      const bytes=await decryptBytes(b64,ghConfig.passphrase);
+      const wb=XLSX.read(bytes,{type:'array'});
+      DB=workbookToDB(wb,currentYear||BASE_YEAR);
+      currentYear=DB.years[DB.years.length-1];
+      if(!DB.expenses[currentYear])currentYear=DB.years[0];
+      dirty=false;
+      expandedYears=new Set([currentYear]);
+      populateYearSelect();populateCatSelects();renderYearNav();
+      const active=document.querySelector('.page.active');
+      if(active&&active.id==='page-dashboard')renderDashboard();
+      else if(active&&active.id==='page-expenses')renderAllTable();
+      else if(active&&active.id==='page-compare')renderCompare();
+      else if(active&&active.id==='page-month')renderMonthPage();
+      updateSyncIndicator();
+      cacheSnapshot();
+      toast('Reloaded latest from GitHub');
+    }
+  }catch(err){toast('Reload failed: '+err.message,'#f87171');}
+}
+
+// ── Connect gate ──
+function setConnectStatus(msg,isError){
+  const el=document.getElementById('connectStatus');if(!el)return;
+  el.textContent=msg;el.style.color=isError?'var(--red)':'var(--muted)';
+}
+async function connectAndLoad(){
+  const token=document.getElementById('ghToken').value.trim();
+  const repoFull=document.getElementById('ghRepo').value.trim();
+  const branch=document.getElementById('ghBranch').value.trim()||'main';
+  const path=document.getElementById('ghPath').value.trim()||'data/budget-data.xlsx';
+  const passphrase=document.getElementById('ghPass').value;
+  const parts=repoFull.split('/').map(s=>s.trim());
+  if(!token||parts.length!==2||!parts[0]||!parts[1]||!passphrase){
+    setConnectStatus('Please fill in Token, Repo as owner/name, and Passphrase.',true);return;
+  }
+  const cfg={token,owner:parts[0],repo:parts[1],branch,path,passphrase};
+  setConnectStatus('Connecting…');
+  const btn=document.getElementById('ghConnectBtn');if(btn)btn.disabled=true;
+  try{
+    ghConfig=cfg;
+    const b64=await ghGetFile();
+    if(b64===null){
+      setConnectStatus('No data file found at that path yet — starting fresh. Click "Sync to GitHub" after connecting to create it.');
+      DB=freshSeedDB();
+    }else{
+      setConnectStatus('Decrypting…');
+      const bytes=await decryptBytes(b64,passphrase);
+      setConnectStatus('Reading workbook…');
+      const wb=XLSX.read(bytes,{type:'array'});
+      DB=workbookToDB(wb,BASE_YEAR);
+    }
+    currentYear=DB.years[DB.years.length-1];
+    if(!DB.expenses[currentYear])currentYear=DB.years[0];
+    dirty=false;
+    initAppUI();
+    cacheSnapshot();
+    hideConnectGate();
+    toast('✓ Connected to GitHub');
+  }catch(err){
+    console.error(err);
+    ghConfig=null;
+    let msg=err.message||'Failed to connect.';
+    if(err.name==='OperationError'||(err.message&&err.message.toLowerCase().includes('decrypt')))msg='Could not decrypt the data — check your passphrase.';
+    setConnectStatus('❌ '+msg,true);
+  }finally{
+    if(btn)btn.disabled=false;
+    updateConnectButton();
+  }
+}
+function showConnectGate(){
+  setConnectStatus('');
+  document.getElementById('connectGate').classList.add('open');
+}
+function hideConnectGate(){document.getElementById('connectGate').classList.remove('open');}
+function cancelConnectGate(){hideConnectGate();}
+function disconnectGithub(){
+  if(dirty&&!confirm('You have unsynced changes that will be lost. Disconnect anyway?'))return;
+  ghConfig=null;ghFileSha=null;dirty=false;
+  document.getElementById('ghToken').value='';
+  document.getElementById('ghPass').value='';
+  updateSyncIndicator();updateConnectButton();
+  toast('Disconnected — still showing your last-loaded data.');
+}
+// Only allow mutations (add/edit/delete/import/budget/new year) once actually
+// connected — otherwise you'd be editing a stale local snapshot that could
+// silently diverge from what's really on GitHub.
+function requireConnection(){
+  if(!ghConfig){
+    toast('Connect to GitHub first to make changes.','#f87171');
+    showConnectGate();
+    return false;
+  }
+  return true;
+}
+function updateConnectButton(){
+  const b=document.getElementById('sidebarConnectBtn');
+  if(!b)return;
+  if(ghConfig){b.textContent='⚙ GitHub Settings';b.className='btn';}
+  else{b.textContent='🔗 Connect to GitHub';b.className='btn btn-primary';}
+}
+function initAppUI(){
+  document.getElementById('globalBudget').value=DB.budget||50000;
+  expandedYears=new Set([currentYear]);
+  populateCatSelects();
+  populateYearSelect();
+  renderYearNav();
+  const dcf=document.getElementById('descCatFilter');
+  if(dcf)dcf.innerHTML='<option value="">All categories</option>'+CATS.map(c=>`<option value="${c}">${c}</option>`).join('');
+  renderDashboard();
+  updateSyncIndicator();
+  updateConnectButton();
+}
+
+// ── Local read-only cache — NOT a source of truth. Only ever used to show
+// something when you're not connected; every write still requires connecting.
+// Refreshed after every successful connect/sync/reload so it's never far behind.
+const CACHE_KEY='budget_tracker_last_session_cache_v1';
+function cacheSnapshot(){
+  try{localStorage.setItem(CACHE_KEY,JSON.stringify({db:DB,ts:Date.now()}));}
+  catch(e){console.warn('Could not cache snapshot locally',e);}
+}
+function loadCachedSnapshot(){
+  try{
+    const r=localStorage.getItem(CACHE_KEY);
+    if(!r)return null;
+    const parsed=JSON.parse(r);
+    if(parsed&&parsed.db&&parsed.db.years&&parsed.db.years.length)return parsed;
+  }catch(e){}
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════
+const fmt=n=>'₹'+(+n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
+function yExp(year){return DB.expenses[year]||{};}
+function allExpenses(yearFilter){
+  const years=yearFilter?[yearFilter]:DB.years;
+  return years.flatMap(y=>MONTHS.flatMap(m=>((DB.expenses[y]||{})[m]||[]).map(e=>({...e,month:m,year:y}))));
+}
+function monthTotal(year,m){return((DB.expenses[year]||{})[m]||[]).reduce((s,e)=>s+(+e.amount),0);}
+function catTotalAll(year,cat){return MONTHS.reduce((s,m)=>s+((DB.expenses[year]||{})[m]||[]).filter(e=>e.category===cat).reduce((a,e)=>a+(+e.amount),0),0);}
+function catTotalMonth(year,m,cat){return((DB.expenses[year]||{})[m]||[]).filter(e=>e.category===cat).reduce((s,e)=>s+(+e.amount),0);}
+
+function catBadge(cat){
+  const c=CAT_COLOR[cat]||'#888';
+  return `<span class="cat-badge" style="background:${c}22;color:${c};border:1px solid ${c}44"><span style="width:6px;height:6px;background:${c};border-radius:50%;display:inline-block"></span> ${cat}</span>`;
+}
+function modeBadge(mode){
+  if(!mode)return'<span style="color:var(--muted)">—</span>';
+  const isOn=mode.toLowerCase().includes('on')||mode==='Online';
+  return`<span class="mode-badge ${isOn?'mode-on':'mode-off'}">${mode}</span>`;
+}
+function toast(msg,color='#34d399'){
+  const t=document.getElementById('toast');t.textContent=msg;t.style.borderColor=color;
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+// Curated description options per category, shown in the suggestion list even
+// before any matching transactions exist (e.g. modes of transport, travel
+// expense types). Merged with whatever descriptions actually recur in the data.
+const CAT_SEED_DESCRIPTIONS={
+  Food:['Vegetables'],
+  Healthcare:["Doctor's Fees"],
+  Utilities:['JioFiber'],
+  Transport:['Petrol','Auto','Cab','Bus','Train','Metro','Toll','Parking','Xoom 125 Service','Xoom 125 Policy','Xoom 125 Pollution','Xoom 125 Disc Pad Change'],
+  Travel:['Hotel','Flight','Train Ticket','Food','Cab','Sightseeing','Travel Insurance','Visa','Local Transport','Souvenirs','Luggage','Fuel'],
+  Pujo:['Flowers','Sandalwood','Candles','Dhoopkathi','Pujo Ingredients','Pujo Sweets','Ponjika']
+};
+function populateCatSelects(){
+  ['newCat','eCat','filterCatAll','filterCatMonth'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const isFilt=id.startsWith('filter');
+    el.innerHTML=(isFilt?'<option value="">All categories</option>':'')+CATS.map(c=>`<option value="${c}">${c}</option>`).join('');
+  });
+  const fm=document.getElementById('filterMonthAll');
+  if(fm)fm.innerHTML='<option value="">All months</option>'+MONTHS.map(m=>`<option value="${m}">${m}</option>`).join('');
+  const fy=document.getElementById('filterYearAll');
+  if(fy)fy.innerHTML='<option value="">All years</option>'+DB.years.map(y=>`<option value="${y}">${y}</option>`).join('');
+}
+// Suggests descriptions that recur often within a category (e.g. "Flowers" in
+// Utilities, "Milk" in Food) as a <datalist> so common entries can be picked
+// instead of retyped. Recomputed whenever the category dropdown changes.
+function populateDescSuggestions(category){
+  const dl=document.getElementById('descSuggestions');
+  if(!dl)return;
+  if(!category){dl.innerHTML='';return;}
+  const counts={};
+  allExpenses().forEach(e=>{
+    if(e.category===category&&e.description)counts[e.description]=(counts[e.description]||0)+1;
+  });
+  const dynamic=Object.keys(counts).filter(d=>counts[d]>=2).sort((a,b)=>counts[b]-counts[a]);
+  const seed=CAT_SEED_DESCRIPTIONS[category]||[];
+  const merged=[...seed,...dynamic.filter(d=>!seed.includes(d))];
+  dl.innerHTML=merged.map(d=>`<option value="${d.replace(/"/g,'&quot;')}"></option>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// YEAR HANDLING
+// ═══════════════════════════════════════════════════════════════════════
+function populateYearSelect(){
+  const sel=document.getElementById('yearSelect');
+  if(!sel)return;
+  sel.innerHTML=DB.years.map(y=>`<option value="${y}" ${+y===+currentYear?'selected':''}>${y}</option>`).join('');
+}
+function onYearChange(y){
+  currentYear=+y;
+  populateYearSelect();
+  expandedYears.add(currentYear);
+  renderYearNav();
+  const active=document.querySelector('.page.active');
+  if(active&&active.id==='page-dashboard')renderDashboard();
+  else if(active&&active.id==='page-expenses')renderAllTable();
+  else if(active&&active.id==='page-month')renderMonthPage();
+  else if(active&&active.id==='page-compare')renderCompare();
+}
+function addYear(){
+  if(!requireConnection())return;
+  const next=Math.max(...DB.years.map(Number))+1;
+  DB.years.push(next);
+  DB.expenses[next]=blankYear(next);
+  saveData(DB);
+  currentYear=next;
+  expandedYears.add(next);
+  populateYearSelect();
+  populateCatSelects();
+  toast(`✓ Added year ${next}`);
+  onYearChange(next);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SIDEBAR MOBILE + DYNAMIC YEAR ▸ MONTH NAV
+// ═══════════════════════════════════════════════════════════════════════
+let expandedYears=new Set();
+function toggleYearNav(y){
+  if(expandedYears.has(y))expandedYears.delete(y);else expandedYears.add(y);
+  renderYearNav();
+}
+function renderYearNav(){
+  const c=document.getElementById('monthNavContainer');
+  if(!c)return;
+  const onMonthPage=document.getElementById('page-month')&&document.getElementById('page-month').classList.contains('active');
+  c.innerHTML=DB.years.map(y=>{
+    const open=expandedYears.has(y);
+    const isCurYear=+y===+currentYear;
+    const monthsHtml=MONTHS.map((m,i)=>{
+      const isActive=onMonthPage&&isCurYear&&m===currentMonth;
+      return `<button class="nav-btn${isActive?' active':''}" onclick="showPage('month',this,'${m}',${y})"><span class="dot" style="background:${MONTH_DOT[i]}"></span>${m}</button>`;
+    }).join('');
+    const yTotal=MONTHS.reduce((s,m)=>s+monthTotal(y,m),0);
+    return `<button class="year-group-header${isCurYear?' active-year':''}" onclick="toggleYearNav(${y})">
+        <span class="year-caret${open?' open':''}">▸</span><span style="flex:1">${y}</span><span style="font-size:10px;color:var(--muted);font-weight:500">${yTotal>0?fmt(yTotal):''}</span>
+      </button>
+      <div class="year-month-list${open?' open':''}" id="yearMonths-${y}">${monthsHtml}</div>`;
+  }).join('');
+}
+function openSidebar(){
+  document.querySelector('.sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeSidebar(){
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+function setBnavActive(id){
+  document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
+  const el=document.getElementById(id);if(el)el.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════════════
+const charts={};
+function dc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+function showPage(type,btn,month,year){
+  if(type==='month'&&year){currentYear=+year;expandedYears.add(currentYear);populateYearSelect();}
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  if(btn&&(type==='dashboard'||type==='expenses'||type==='compare'))btn.classList.add('active');
+  closeSidebar();
+  document.getElementById('topbarTitle').textContent=type==='month'?month+' '+currentYear:type==='expenses'?'All Expenses':type==='compare'?'Compare Years':'Dashboard '+currentYear;
+  // Sync bottom nav
+  if(type==='dashboard')setBnavActive('bnav-dashboard');
+  else if(type==='expenses')setBnavActive('bnav-expenses');
+  else if(type==='compare')setBnavActive('bnav-compare');
+  else setBnavActive('bnav-months');
+  if(type==='dashboard'){document.getElementById('page-dashboard').classList.add('active');renderDashboard();}
+  else if(type==='expenses'){document.getElementById('page-expenses').classList.add('active');renderAllTable();}
+  else if(type==='compare'){document.getElementById('page-compare').classList.add('active');renderCompare();}
+  else{
+    currentMonth=month;
+    document.getElementById('page-month').classList.add('active');
+    document.getElementById('monthChartTitle').textContent=month+' '+currentYear+' — Category Breakdown';
+    document.getElementById('monthTableTitle').textContent=month+' '+currentYear+' Expenses';
+    const mIdx=MONTHS.indexOf(month);
+    document.getElementById('newDate').value=`${currentYear}-${pad(mIdx+1)}-01`;
+    renderMonthPage();
+    populateDescSuggestions(document.getElementById('newCat').value);
+  }
+  renderYearNav();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════
+function renderDashboard(){
+  const budget=DB.budget||50000;
+  const allExp=allExpenses(currentYear);
+  const grandTotal=allExp.reduce((s,e)=>s+(+e.amount),0);
+  const activeMths=MONTHS.filter(m=>((DB.expenses[currentYear]||{})[m]||[]).some(e=>+e.amount>0));
+  const avg=activeMths.length?grandTotal/activeMths.length:0;
+  const highM=MONTHS.reduce((a,b)=>monthTotal(currentYear,a)>monthTotal(currentYear,b)?a:b);
+  const overB=activeMths.filter(m=>monthTotal(currentYear,m)>budget);
+
+  document.getElementById('kpiGrid').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Grand Total — ${currentYear}</div><div class="kpi-value blue">${fmt(grandTotal)}</div><div class="kpi-sub">${allExp.filter(e=>+e.amount>0).length} transactions</div></div>
+    <div class="kpi"><div class="kpi-label">Monthly Budget</div><div class="kpi-value">${fmt(budget)}</div><div class="kpi-sub">per month</div></div>
+    <div class="kpi"><div class="kpi-label">Avg Monthly Spend</div><div class="kpi-value amber">${fmt(avg)}</div><div class="kpi-sub">${activeMths.length} active months</div></div>
+    <div class="kpi"><div class="kpi-label">Highest Month</div><div class="kpi-value red">${highM}</div><div class="kpi-sub">${fmt(monthTotal(currentYear,highM))}</div></div>
+    <div class="kpi"><div class="kpi-label">Over Budget</div><div class="kpi-value ${overB.length?'red':'green'}">${overB.length} month${overB.length!==1?'s':''}</div><div class="kpi-sub">${overB.length?overB.join(', '):'All within budget'}</div></div>`;
+
+  const alert=document.getElementById('dashAlert');
+  if(overB.length){alert.className='alert danger';alert.innerHTML=`⚠ Over budget in ${currentYear}: <strong>${overB.join(', ')}</strong>`;}
+  else alert.style.display='none';
+
+  // Monthly bar
+  dc('barMonthly');
+  charts['barMonthly']=new Chart(document.getElementById('barMonthly'),{
+    type:'bar',
+    data:{labels:MONTHS,datasets:[
+      {label:'Spent',data:MONTHS.map(m=>monthTotal(currentYear,m)),backgroundColor:MONTHS.map(m=>monthTotal(currentYear,m)>budget?'#f87171cc':'#6c8cffcc'),borderRadius:5,borderSkipped:false},
+      {label:'Budget',data:MONTHS.map(()=>budget),type:'line',borderColor:'#fbbf24',borderWidth:2,borderDash:[6,4],pointRadius:0,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Inter',size:11}}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}},
+      scales:{x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}}}
+  });
+
+  // Donut
+  const catTotals=CATS.map(c=>catTotalAll(currentYear,c));
+  const gt=catTotals.reduce((s,v)=>s+v,0);
+  dc('donutAll');
+  charts['donutAll']=new Chart(document.getElementById('donutAll'),{
+    type:'doughnut',
+    data:{labels:CATS,datasets:[{data:catTotals,backgroundColor:CATS.map(c=>CAT_COLOR[c]+'cc'),borderWidth:2,borderColor:'#1a1d27',hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.raw)} (${gt>0?Math.round(ctx.raw/gt*100):0}%)`}}}}
+  });
+  document.getElementById('donutTotal').textContent=fmt(gt);
+  document.getElementById('catLegend').innerHTML=CATS.map((c,i)=>
+    `<div class="cat-pill"><span class="sw" style="background:${CAT_COLOR[c]}"></span>${c} ${gt>0&&catTotals[i]>0?Math.round(catTotals[i]/gt*100)+'%':''}</div>`).join('');
+
+  // Line chart
+  dc('lineChart');
+  charts['lineChart']=new Chart(document.getElementById('lineChart'),{
+    type:'line',
+    data:{labels:activeMths,datasets:CATS.map(cat=>({
+      label:cat,data:activeMths.map(m=>catTotalMonth(currentYear,m,cat)),
+      borderColor:CAT_COLOR[cat],backgroundColor:CAT_COLOR[cat]+'22',
+      borderWidth:2,pointRadius:3,tension:0.4,pointBackgroundColor:CAT_COLOR[cat]
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:9}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}},
+      scales:{x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}}}
+  });
+
+  // % stacked bar
+  dc('pctBar');
+  charts['pctBar']=new Chart(document.getElementById('pctBar'),{
+    type:'bar',
+    data:{labels:MONTHS,datasets:CATS.map(cat=>({
+      label:cat,data:MONTHS.map(m=>{const mt=monthTotal(currentYear,m);return mt?Math.round(catTotalMonth(currentYear,m,cat)/mt*100):0;}),
+      backgroundColor:CAT_COLOR[cat]+'cc',borderRadius:2,borderSkipped:false
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:9}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.raw}%`}}},
+      scales:{x:{stacked:true,ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},y:{stacked:true,max:100,ticks:{color:'#64748b',callback:v=>v+'%',font:{size:11}},grid:{color:'#1e2235'}}}}
+  });
+
+  // Stacked bar ₹
+  dc('stackedBar');
+  charts['stackedBar']=new Chart(document.getElementById('stackedBar'),{
+    type:'bar',
+    data:{labels:MONTHS,datasets:CATS.map(cat=>({
+      label:cat,data:MONTHS.map(m=>catTotalMonth(currentYear,m,cat)),
+      backgroundColor:CAT_COLOR[cat]+'cc',borderRadius:2,borderSkipped:false
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:9}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}},
+      scales:{x:{stacked:true,ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},y:{stacked:true,ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}}}
+  });
+
+  // Summary table
+  document.getElementById('summaryHead').innerHTML='<th>Month</th>'+CATS.map(c=>`<th>${c}</th>`).join('')+'<th>Total</th>';
+  let html='';
+  MONTHS.forEach(m=>{
+    const mt=monthTotal(currentYear,m);const ob=mt>budget;
+    html+=`<tr><td style="font-weight:600;color:${ob?'var(--red)':'var(--text)'}">${m}${ob?' ⚠':''}</td>`+
+      CATS.map(cat=>{const v=catTotalMonth(currentYear,m,cat);return`<td class="amt" style="color:${v>0?CAT_COLOR[cat]:'var(--muted)'}">${v>0?fmt(v):'—'}</td>`;}).join('')+
+      `<td class="amt" style="font-weight:600;color:${ob?'var(--red)':'var(--green)'}">${mt>0?fmt(mt):'—'}</td></tr>`;
+  });
+  html+=`<tr style="background:rgba(108,140,255,.08);border-top:1px solid var(--border)"><td style="font-weight:700;color:var(--accent)">TOTAL</td>`+
+    CATS.map(cat=>`<td class="amt" style="font-weight:600;color:${CAT_COLOR[cat]}">${fmt(catTotalAll(currentYear,cat))}</td>`).join('')+
+    `<td class="amt" style="font-weight:700;color:var(--accent)">${fmt(grandTotal)}</td></tr>`;
+  document.getElementById('summaryBody').innerHTML=html;
+
+  // Render the 4 new charts
+  renderCashOnlineMonthly();
+  renderCashOnlineCat();
+  populateDescFilter();
+  populateCustomCatFilter();
+  renderCustomChart();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CHART: Cash vs Online Monthly
+// ═══════════════════════════════════════════════════════════════════════
+function isCash(mode){return mode&&(mode.toLowerCase()==='cash'||mode.toLowerCase()==='off');}
+function isOnline(mode){return mode&&(mode.toLowerCase()==='online'||mode.toLowerCase()==='on');}
+
+function renderCashOnlineMonthly(){
+  dc('cashOnlineMonthly');
+  const cashData=MONTHS.map(m=>((DB.expenses[currentYear]||{})[m]||[]).filter(e=>+e.amount>0&&isCash(e.mode)).reduce((s,e)=>s+(+e.amount),0));
+  const onlineData=MONTHS.map(m=>((DB.expenses[currentYear]||{})[m]||[]).filter(e=>+e.amount>0&&isOnline(e.mode)).reduce((s,e)=>s+(+e.amount),0));
+  charts['cashOnlineMonthly']=new Chart(document.getElementById('cashOnlineMonthly'),{
+    type:'bar',
+    data:{labels:MONTHS,datasets:[
+      {label:'Online',data:onlineData,backgroundColor:'#6c8cffcc',borderRadius:5,borderSkipped:false},
+      {label:'Cash',data:cashData,backgroundColor:'#34d399cc',borderRadius:5,borderSkipped:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Inter',size:11}}},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}},
+      scales:{
+        x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},
+        y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}
+      }}
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CHART: Cash vs Online Category-wise
+// ═══════════════════════════════════════════════════════════════════════
+function renderCashOnlineCat(){
+  dc('cashOnlineCat');
+  const allExp=allExpenses(currentYear).filter(e=>+e.amount>0);
+  const cashData=CATS.map(cat=>allExp.filter(e=>e.category===cat&&isCash(e.mode)).reduce((s,e)=>s+(+e.amount),0));
+  const onlineData=CATS.map(cat=>allExp.filter(e=>e.category===cat&&isOnline(e.mode)).reduce((s,e)=>s+(+e.amount),0));
+  charts['cashOnlineCat']=new Chart(document.getElementById('cashOnlineCat'),{
+    type:'bar',
+    data:{labels:CATS,datasets:[
+      {label:'Online',data:onlineData,backgroundColor:'#6c8cffcc',borderRadius:5,borderSkipped:false},
+      {label:'Cash',data:cashData,backgroundColor:'#34d399cc',borderRadius:5,borderSkipped:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Inter',size:11}}},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}},
+      scales:{
+        x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},
+        y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}
+      }}
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CHART: Description spend by month
+// ═══════════════════════════════════════════════════════════════════════
+function populateDescFilter(){
+  const cat=document.getElementById('descCatFilter').value;
+  const allExp=allExpenses(currentYear).filter(e=>+e.amount>0&&e.description);
+  const filtered=cat?allExp.filter(e=>e.category===cat):allExp;
+  // Unique descriptions sorted by total spend descending
+  const descMap={};
+  filtered.forEach(e=>{descMap[e.description]=(descMap[e.description]||0)+(+e.amount);});
+  const descs=Object.keys(descMap).sort((a,b)=>descMap[b]-descMap[a]);
+  const sel=document.getElementById('descFilter');
+  const prev=sel.value;
+  sel.innerHTML='<option value="">— All descriptions —</option>'+descs.map(d=>`<option value="${d}">${d}</option>`).join('');
+  if(descs.includes(prev))sel.value=prev;
+  renderDescChart();
+}
+
+function renderDescChart(){
+  dc('descMonthlyChart');
+  const cat=document.getElementById('descCatFilter').value;
+  const desc=document.getElementById('descFilter').value;
+  const chartType=document.getElementById('descChartType').value;
+
+  let labels, datasets;
+
+  if(!desc){
+    // Show all descriptions grouped by month — top 8 descriptions by total
+    const allExp=allExpenses(currentYear).filter(e=>+e.amount>0);
+    const filtered=cat?allExp.filter(e=>e.category===cat):allExp;
+    const descMap={};
+    filtered.forEach(e=>{descMap[e.description]=(descMap[e.description]||0)+(+e.amount);});
+    const topDescs=Object.keys(descMap).sort((a,b)=>descMap[b]-descMap[a]).slice(0,8);
+    labels=MONTHS;
+    const palette=['#6c8cff','#34d399','#fbbf24','#f87171','#a78bfa','#fb923c','#f472b6','#94a3b8'];
+    datasets=topDescs.map((d,i)=>({
+      label:d,
+      data:MONTHS.map(m=>((DB.expenses[currentYear]||{})[m]||[]).filter(e=>e.description===d&&(!cat||e.category===cat)).reduce((s,e)=>s+(+e.amount),0)),
+      backgroundColor:palette[i%8]+'bb',
+      borderColor:palette[i%8],
+      borderWidth:chartType==='line'?2:0,
+      borderRadius:chartType==='bar'?4:0,
+      fill:false,tension:0.4,pointRadius:3
+    }));
+  } else {
+    // Single description across months
+    labels=MONTHS;
+    const color='#6c8cff';
+    const data=MONTHS.map(m=>((DB.expenses[currentYear]||{})[m]||[]).filter(e=>e.description===desc&&(!cat||e.category===cat)).reduce((s,e)=>s+(+e.amount),0));
+    datasets=[{
+      label:desc,data,
+      backgroundColor:color+'99',borderColor:color,
+      borderWidth:chartType==='line'?2:0,
+      borderRadius:chartType==='bar'?4:0,
+      fill:chartType==='line',tension:0.4,pointRadius:4,pointBackgroundColor:color
+    }];
+  }
+
+  charts['descMonthlyChart']=new Chart(document.getElementById('descMonthlyChart'),{
+    type:chartType,
+    data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:9}},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}},
+      scales:{
+        x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},
+        y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}
+      }}
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CHART: Custom chart builder
+// ═══════════════════════════════════════════════════════════════════════
+function populateCustomCatFilter(){
+  const sel=document.getElementById('customCatFilter');
+  sel.innerHTML='<option value="">All categories</option>'+CATS.map(c=>`<option value="${c}">${c}</option>`).join('');
+}
+
+function renderCustomChart(){
+  dc('customChart');
+  const xAxis=document.getElementById('customX').value;
+  const metric=document.getElementById('customMetric').value;
+  const catFilter=document.getElementById('customCatFilter').value;
+  const chartType=document.getElementById('customChartType').value;
+  const allExp=allExpenses(currentYear).filter(e=>+e.amount>0&&(!catFilter||e.category===catFilter));
+
+  // Build labels and data based on xAxis
+  let labels=[];
+  if(xAxis==='month') labels=MONTHS;
+  else if(xAxis==='category') labels=CATS;
+  else if(xAxis==='mode') labels=['Online','Cash','Other'];
+
+  function calcMetric(entries){
+    if(!entries.length)return 0;
+    if(metric==='total')return entries.reduce((s,e)=>s+(+e.amount),0);
+    if(metric==='count')return entries.length;
+    if(metric==='avg'){const t=entries.reduce((s,e)=>s+(+e.amount),0);return Math.round(t/entries.length);}
+    if(metric==='cash')return entries.filter(e=>isCash(e.mode)).reduce((s,e)=>s+(+e.amount),0);
+    if(metric==='online')return entries.filter(e=>isOnline(e.mode)).reduce((s,e)=>s+(+e.amount),0);
+    return 0;
+  }
+
+  let data=[];
+  if(xAxis==='month') data=MONTHS.map(m=>calcMetric(((DB.expenses[currentYear]||{})[m]||[]).filter(e=>+e.amount>0&&(!catFilter||e.category===catFilter))));
+  else if(xAxis==='category') data=CATS.map(cat=>calcMetric(allExp.filter(e=>e.category===cat)));
+  else if(xAxis==='mode'){
+    data=[
+      calcMetric(allExp.filter(e=>isOnline(e.mode))),
+      calcMetric(allExp.filter(e=>isCash(e.mode))),
+      calcMetric(allExp.filter(e=>!isCash(e.mode)&&!isOnline(e.mode)))
+    ];
+  }
+
+  const palette=['#6c8cff','#34d399','#fbbf24','#f87171','#a78bfa','#fb923c','#f472b6','#94a3b8','#38bdf8','#4ade80'];
+  const bgColors=labels.map((_,i)=>palette[i%palette.length]+'cc');
+  const borderColors=labels.map((_,i)=>palette[i%palette.length]);
+
+  const metricLabels={total:'Total Spend (₹)',count:'Transactions',avg:'Avg per Transaction (₹)',cash:'Cash Spend (₹)',online:'Online Spend (₹)'};
+  const total=data.reduce((s,v)=>s+v,0);
+  document.getElementById('customChartInfo').innerHTML=
+    `<span style="color:var(--accent)">${metricLabels[metric]}</span> by <span style="color:var(--accent)">${xAxis}</span>${catFilter?' · filtered to <span style="color:var(--amber)">'+catFilter+'</span>':''} &nbsp;·&nbsp; Total: <span style="font-weight:600;color:var(--green)">${metric==='count'?total+' txns':fmt(total)}</span>`;
+
+  const isCartesian=chartType==='bar'||chartType==='line';
+  charts['customChart']=new Chart(document.getElementById('customChart'),{
+    type:chartType,
+    data:{labels,datasets:[{
+      label:metricLabels[metric],data,
+      backgroundColor:bgColors,
+      borderColor:borderColors,
+      borderWidth:chartType==='line'?2:1,
+      borderRadius:chartType==='bar'?5:0,
+      fill:false,tension:0.4,pointRadius:4,
+      pointBackgroundColor:borderColors,
+      hoverOffset:8
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:chartType==='doughnut'?'55%':undefined,
+      plugins:{
+        legend:{display:!isCartesian,labels:{color:'#94a3b8',font:{size:10},boxWidth:9}},
+        tooltip:{callbacks:{label:ctx=>{
+          const v=ctx.raw||ctx.parsed;
+          return` ${ctx.label||ctx.dataset.label}: ${metric==='count'?v+' txns':fmt(v)} (${total>0?Math.round(v/total*100):0}%)`;
+        }}}
+      },
+      scales:isCartesian?{
+        x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},
+        y:{ticks:{color:'#64748b',callback:v=>metric==='count'?v:('₹'+Math.round(v/1000)+'k'),font:{size:11}},grid:{color:'#1e2235'}}
+      }:{}
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// COMPARE YEARS — cross-year dashboard
+// ═══════════════════════════════════════════════════════════════════════
+const YEAR_PALETTE=['#6c8cff','#34d399','#fbbf24','#f87171','#a78bfa','#fb923c','#f472b6','#38bdf8'];
+function yearColor(i){return YEAR_PALETTE[i%YEAR_PALETTE.length];}
+
+function renderCompare(){
+  const years=DB.years;
+  const yearTotals=years.map(y=>MONTHS.reduce((s,m)=>s+monthTotal(y,m),0));
+  const yearTxns=years.map(y=>allExpenses(y).filter(e=>+e.amount>0).length);
+  const yearActiveMonths=years.map(y=>MONTHS.filter(m=>((DB.expenses[y]||{})[m]||[]).some(e=>+e.amount>0)).length);
+  const yearAvg=years.map((y,i)=>yearActiveMonths[i]?yearTotals[i]/yearActiveMonths[i]:0);
+  const grand=yearTotals.reduce((s,v)=>s+v,0);
+  const highIdx=yearTotals.indexOf(Math.max(...yearTotals));
+  const lowActive=years.map((y,i)=>({y,t:yearTotals[i],a:yearActiveMonths[i]})).filter(x=>x.a>0);
+  const lowest=lowActive.length?lowActive.reduce((a,b)=>a.t<b.t?a:b):null;
+
+  document.getElementById('compareKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Years Tracked</div><div class="kpi-value blue">${years.length}</div><div class="kpi-sub">${years.join(', ')}</div></div>
+    <div class="kpi"><div class="kpi-label">Grand Total — All Years</div><div class="kpi-value green">${fmt(grand)}</div><div class="kpi-sub">${years.reduce((s,y,i)=>s+yearTxns[i],0)} transactions</div></div>
+    <div class="kpi"><div class="kpi-label">Highest Spending Year</div><div class="kpi-value red">${years[highIdx]}</div><div class="kpi-sub">${fmt(yearTotals[highIdx])}</div></div>
+    <div class="kpi"><div class="kpi-label">Lowest Spending Year</div><div class="kpi-value amber">${lowest?lowest.y:'—'}</div><div class="kpi-sub">${lowest?fmt(lowest.t):'no data yet'}</div></div>`;
+
+  // Total spend by year
+  dc('cmpYearTotalBar');
+  charts['cmpYearTotalBar']=new Chart(document.getElementById('cmpYearTotalBar'),{
+    type:'bar',
+    data:{labels:years,datasets:[{label:'Total Spend',data:yearTotals,backgroundColor:years.map((_,i)=>yearColor(i)+'cc'),borderRadius:5,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmt(ctx.raw)}`}}},
+      scales:{x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}}}
+  });
+
+  // Category spend — year comparison (grouped bar)
+  dc('cmpCategoryBar');
+  charts['cmpCategoryBar']=new Chart(document.getElementById('cmpCategoryBar'),{
+    type:'bar',
+    data:{labels:CATS,datasets:years.map((y,i)=>({
+      label:String(y),data:CATS.map(c=>catTotalAll(y,c)),
+      backgroundColor:yearColor(i)+'cc',borderRadius:3,borderSkipped:false
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:9}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}},
+      scales:{x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}}}
+  });
+
+  // Month-over-month trend, all years overlaid
+  dc('cmpMonthlyLine');
+  charts['cmpMonthlyLine']=new Chart(document.getElementById('cmpMonthlyLine'),{
+    type:'line',
+    data:{labels:MONTHS,datasets:years.map((y,i)=>({
+      label:String(y),data:MONTHS.map(m=>monthTotal(y,m)),
+      borderColor:yearColor(i),backgroundColor:yearColor(i)+'22',
+      borderWidth:2,pointRadius:3,tension:0.35,pointBackgroundColor:yearColor(i)
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:9}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}},
+      scales:{x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}}}
+  });
+
+  // Cash vs online by year
+  dc('cmpCashOnline');
+  const cashByYear=years.map(y=>allExpenses(y).filter(e=>+e.amount>0&&isCash(e.mode)).reduce((s,e)=>s+(+e.amount),0));
+  const onlineByYear=years.map(y=>allExpenses(y).filter(e=>+e.amount>0&&isOnline(e.mode)).reduce((s,e)=>s+(+e.amount),0));
+  charts['cmpCashOnline']=new Chart(document.getElementById('cmpCashOnline'),{
+    type:'bar',
+    data:{labels:years,datasets:[
+      {label:'Online',data:onlineByYear,backgroundColor:'#6c8cffcc',borderRadius:5,borderSkipped:false},
+      {label:'Cash',data:cashByYear,backgroundColor:'#34d399cc',borderRadius:5,borderSkipped:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:9}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}},
+      scales:{x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'#1e2235'}}}}
+  });
+
+  // Transactions count + avg spend/txn by year (dual metric)
+  dc('cmpTxnAvg');
+  const avgPerTxn=years.map((y,i)=>yearTxns[i]?yearTotals[i]/yearTxns[i]:0);
+  charts['cmpTxnAvg']=new Chart(document.getElementById('cmpTxnAvg'),{
+    type:'bar',
+    data:{labels:years,datasets:[
+      {label:'Transactions',data:yearTxns,backgroundColor:'#a78bfacc',borderRadius:5,borderSkipped:false,yAxisID:'y'},
+      {label:'Avg ₹/Transaction',data:avgPerTxn,type:'line',borderColor:'#fbbf24',backgroundColor:'#fbbf24',borderWidth:2,pointRadius:4,yAxisID:'y1',tension:0.3}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:9}},tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Transactions'?` ${ctx.raw} txns`:` ${fmt(ctx.raw)}`}}},
+      scales:{
+        x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},
+        y:{position:'left',ticks:{color:'#64748b',font:{size:11}},grid:{color:'#1e2235'}},
+        y1:{position:'right',ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v),font:{size:11}},grid:{display:false}}
+      }}
+  });
+
+  // Year × Category summary table
+  document.getElementById('compareSummaryHead').innerHTML='<th>Year</th>'+CATS.map(c=>`<th>${c}</th>`).join('')+'<th>Total</th><th>Txns</th>';
+  let html='';
+  years.forEach((y,i)=>{
+    html+=`<tr><td style="font-weight:600;color:${yearColor(i)}">${y}</td>`+
+      CATS.map(cat=>{const v=catTotalAll(y,cat);return`<td class="amt" style="color:${v>0?CAT_COLOR[cat]:'var(--muted)'}">${v>0?fmt(v):'—'}</td>`;}).join('')+
+      `<td class="amt" style="font-weight:600;color:var(--accent)">${yearTotals[i]>0?fmt(yearTotals[i]):'—'}</td>`+
+      `<td class="amt" style="color:var(--muted)">${yearTxns[i]}</td></tr>`;
+  });
+  html+=`<tr style="background:rgba(108,140,255,.08);border-top:1px solid var(--border)"><td style="font-weight:700;color:var(--accent)">TOTAL</td>`+
+    CATS.map(cat=>`<td class="amt" style="font-weight:600;color:${CAT_COLOR[cat]}">${fmt(years.reduce((s,y)=>s+catTotalAll(y,cat),0))}</td>`).join('')+
+    `<td class="amt" style="font-weight:700;color:var(--accent)">${fmt(grand)}</td>`+
+    `<td class="amt" style="font-weight:700;color:var(--muted)">${years.reduce((s,_,i)=>s+yearTxns[i],0)}</td></tr>`;
+  document.getElementById('compareSummaryBody').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MONTH PAGE
+// ═══════════════════════════════════════════════════════════════════════
+function renderMonthPage(){
+  const m=currentMonth;const budget=DB.budget||50000;
+  const expenses=(DB.expenses[currentYear]||{})[m]||[];
+  const total=expenses.reduce((s,e)=>s+(+e.amount),0);
+  const remain=budget-total;const pct=Math.min(Math.round(total/budget*100),100);
+  const bc=total>budget?'#f87171':total>budget*.8?'#fbbf24':'#34d399';
+
+  const alert=document.getElementById('monthAlert');
+  if(total>budget){alert.className='alert danger';alert.innerHTML=`⚠ Over budget by <strong>${fmt(Math.abs(remain))}</strong>!`;}
+  else if(remain<budget*.2){alert.className='alert warn';alert.innerHTML=`⚠ Only <strong>${fmt(remain)}</strong> (${100-pct}%) remaining for ${m} ${currentYear}.`;}
+  else alert.style.display='none';
+
+  document.getElementById('monthKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Total Spent</div><div class="kpi-value ${total>budget?'red':'green'}">${fmt(total)}</div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${bc}"></div></div></div>
+    <div class="kpi"><div class="kpi-label">Budget</div><div class="kpi-value blue">${fmt(budget)}</div><div class="kpi-sub">monthly limit</div></div>
+    <div class="kpi"><div class="kpi-label">Remaining</div><div class="kpi-value ${remain<0?'red':remain<budget*.2?'amber':'green'}">${fmt(Math.abs(remain))}</div><div class="kpi-sub">${remain<0?'over budget':pct+'% used'}</div></div>
+    <div class="kpi"><div class="kpi-label">Transactions</div><div class="kpi-value">${expenses.filter(e=>+e.amount>0).length}</div><div class="kpi-sub">entries</div></div>`;
+
+  const catData=CATS.map(c=>catTotalMonth(currentYear,m,c));const ct=catData.reduce((s,v)=>s+v,0);
+  dc('monthDonut');
+  charts['monthDonut']=new Chart(document.getElementById('monthDonut'),{
+    type:'doughnut',
+    data:{labels:CATS,datasets:[{data:catData,backgroundColor:CATS.map(c=>CAT_COLOR[c]+'cc'),borderWidth:2,borderColor:'#1a1d27',hoverOffset:5}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.raw)} (${ct>0?Math.round(ctx.raw/ct*100):0}%)`}}}}
+  });
+  document.getElementById('monthDonutTotal').textContent=fmt(total);
+  document.getElementById('monthCatLegend').innerHTML=CATS.map((c,i)=>
+    `<div class="cat-pill"><span class="sw" style="background:${CAT_COLOR[c]}"></span>${c}${ct>0&&catData[i]>0?' '+Math.round(catData[i]/ct*100)+'%':''}</div>`).join('');
+
+  const dm={};expenses.forEach(e=>{if(+e.amount>0&&e.date)dm[e.date]=(dm[e.date]||0)+(+e.amount);});
+  const days=Object.keys(dm).sort();
+  dc('monthDailyBar');
+  charts['monthDailyBar']=new Chart(document.getElementById('monthDailyBar'),{
+    type:'bar',
+    data:{labels:days.map(d=>d.slice(8)),datasets:[{label:'Daily',data:days.map(d=>dm[d]),backgroundColor:'#6c8cff99',borderRadius:4,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmt(ctx.raw)}`}}},
+      scales:{x:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'#1e2235'}},y:{ticks:{color:'#64748b',callback:v=>'₹'+Math.round(v/1000)+'k',font:{size:10}},grid:{color:'#1e2235'}}}}
+  });
+  renderMonthTable();
+}
+
+function renderMonthTable(){
+  const m=currentMonth;
+  const q=(document.getElementById('searchMonth').value||'').toLowerCase();
+  const cf=document.getElementById('filterCatMonth').value;
+  const rows=((DB.expenses[currentYear]||{})[m]||[]).filter(e=>
+    (!q||e.description.toLowerCase().includes(q)||e.category.toLowerCase().includes(q))&&(!cf||e.category===cf)
+  ).sort((a,b)=>a.date.localeCompare(b.date));
+  const tbody=document.getElementById('monthExpBody');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">No expenses. Add one above.</td></tr>`;return;}
+  const isBlank=e=>!e.category&&!e.description&&+e.amount===0;
+  tbody.innerHTML=rows.map(e=>`<tr style="${isBlank(e)?'opacity:.35':''}">
+    <td>${e.date||'—'}</td>
+    <td>${e.category?catBadge(e.category):'<span style="color:var(--muted)">—</span>'}</td>
+    <td style="color:${isBlank(e)?'var(--muted)':'var(--text)'}">${e.description||'—'}</td>
+    <td class="amt">${+e.amount>0?fmt(e.amount):'—'}</td>
+    <td>${modeBadge(e.mode)}</td>
+    <td style="display:flex;gap:3px">
+      <button class="edit-btn" onclick="openEdit(${currentYear},'${m}','${e.id}')" title="Edit">✏</button>
+      <button class="del-btn" onclick="deleteExp(${currentYear},'${m}','${e.id}')" title="Delete">✕</button>
+    </td></tr>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ALL EXPENSES
+// ═══════════════════════════════════════════════════════════════════════
+function renderAllTable(){
+  const q=(document.getElementById('searchAll').value||'').toLowerCase();
+  const cf=document.getElementById('filterCatAll').value;
+  const mf=document.getElementById('filterMonthAll').value;
+  const yf=document.getElementById('filterYearAll').value;
+  const rows=allExpenses(yf?+yf:null).filter(e=>+e.amount>0&&
+    (!q||e.description.toLowerCase().includes(q)||e.category.toLowerCase().includes(q))&&
+    (!cf||e.category===cf)&&(!mf||e.month===mf)
+  ).sort((a,b)=>(a.year-b.year)||a.date.localeCompare(b.date));
+  const tbody=document.getElementById('allExpBody');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">No expenses match the filter.</td></tr>`;return;}
+  tbody.innerHTML=rows.map(e=>`<tr>
+    <td>${e.date}</td>
+    <td style="color:var(--muted);font-size:11px">${e.year}</td>
+    <td style="color:var(--muted);font-size:11px">${e.month}</td>
+    <td>${catBadge(e.category)}</td>
+    <td>${e.description}</td>
+    <td class="amt">${fmt(e.amount)}</td>
+    <td>${modeBadge(e.mode)}</td>
+    <td style="display:flex;gap:3px">
+      <button class="edit-btn" onclick="openEdit(${e.year},'${e.month}','${e.id}')" title="Edit">✏</button>
+      <button class="del-btn" onclick="deleteExp(${e.year},'${e.month}','${e.id}')" title="Delete">✕</button>
+    </td></tr>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADD / DELETE / EDIT
+// ═══════════════════════════════════════════════════════════════════════
+function addExpense(){
+  if(!requireConnection())return;
+  const date=document.getElementById('newDate').value;
+  const cat=document.getElementById('newCat').value;
+  const desc=document.getElementById('newDesc').value.trim();
+  const amt=parseFloat(document.getElementById('newAmt').value);
+  const mode=document.getElementById('newMode').value;
+  if(!date||!desc||isNaN(amt)||amt<=0){toast('Fill all fields correctly.','#f87171');return;}
+  DB.expenses[currentYear][currentMonth].push({id:uid(),date,category:cat,description:desc,amount:amt,mode});
+  saveData(DB);
+  document.getElementById('newDesc').value='';document.getElementById('newAmt').value='';
+  toast('Added ✓');renderMonthPage();
+  syncToGitHub(`Added "${desc}" — ${fmt(amt)} (${cat})`);
+}
+function deleteExp(year,month,id){
+  if(!requireConnection())return;
+  const victim=(DB.expenses[year][month]||[]).find(e=>e.id===id);
+  DB.expenses[year][month]=(DB.expenses[year][month]||[]).filter(e=>e.id!==id);
+  saveData(DB);toast('Deleted.','#f87171');
+  const ap=document.getElementById('page-month');const ep=document.getElementById('page-expenses');const dp=document.getElementById('page-dashboard');const cp=document.getElementById('page-compare');
+  if(ap.classList.contains('active'))renderMonthPage();
+  if(ep.classList.contains('active'))renderAllTable();
+  if(dp.classList.contains('active'))renderDashboard();
+  if(cp.classList.contains('active'))renderCompare();
+  const gist=victim?`"${victim.description||'entry'}" — ${fmt(victim.amount)} (${victim.category||month})`:`entry in ${month} ${year}`;
+  syncToGitHub(`Deleted ${gist}`);
+}
+let editRef=null;
+function openEdit(year,month,id){
+  const e=((DB.expenses[year]||{})[month]||[]).find(x=>x.id===id);if(!e)return;
+  editRef={year,month,id};
+  document.getElementById('eDate').value=e.date||'';
+  document.getElementById('eCat').value=e.category||CATS[0];
+  document.getElementById('eDesc').value=e.description||'';
+  document.getElementById('eAmt').value=e.amount||0;
+  document.getElementById('eMode').value=e.mode||'Online';
+  populateDescSuggestions(e.category||CATS[0]);
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEdit(){document.getElementById('editModal').classList.remove('open');editRef=null;}
+function saveEdit(){
+  if(!editRef)return;
+  if(!requireConnection())return;
+  const{year,month,id}=editRef;const idx=(DB.expenses[year][month]||[]).findIndex(e=>e.id===id);if(idx<0)return;
+  DB.expenses[year][month][idx]={...DB.expenses[year][month][idx],
+    date:document.getElementById('eDate').value,category:document.getElementById('eCat').value,
+    description:document.getElementById('eDesc').value.trim(),amount:parseFloat(document.getElementById('eAmt').value),
+    mode:document.getElementById('eMode').value};
+  const updated=DB.expenses[year][month][idx];
+  saveData(DB);closeEdit();toast('Updated ✓');
+  if(document.getElementById('page-month').classList.contains('active'))renderMonthPage();
+  if(document.getElementById('page-expenses').classList.contains('active'))renderAllTable();
+  if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
+  if(document.getElementById('page-compare').classList.contains('active'))renderCompare();
+  syncToGitHub(`Updated "${updated.description}" — ${fmt(updated.amount)} (${updated.category})`);
+}
+function saveBudget(){
+  if(!requireConnection())return;
+  DB.budget=parseFloat(document.getElementById('globalBudget').value)||50000;
+  saveData(DB);toast('Budget updated ✓');
+  if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
+  if(document.getElementById('page-month').classList.contains('active'))renderMonthPage();
+  if(document.getElementById('page-compare').classList.contains('active'))renderCompare();
+  syncToGitHub(`Budget updated — ${fmt(DB.budget)}`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════════════
+function buildWorkbook(){
+  const wb=XLSX.utils.book_new();const budget=DB.budget||50000;
+  const dashData=[['Year','Month',...CATS,'Total','Budget','Variance']];
+  DB.years.forEach(y=>{
+    MONTHS.forEach(m=>{const mt=monthTotal(y,m);dashData.push([y,m,...CATS.map(c=>catTotalMonth(y,m,c)),mt,budget,budget-mt]);});
+  });
+  const grandAll=DB.years.reduce((s,y)=>s+MONTHS.reduce((s2,m)=>s2+monthTotal(y,m),0),0);
+  dashData.push(['TOTAL','',...CATS.map(c=>DB.years.reduce((s,y)=>s+catTotalAll(y,c),0)),grandAll,budget*MONTHS.length*DB.years.length,'']);
+  const wsD=XLSX.utils.aoa_to_sheet(dashData);wsD['!cols']=[{wch:8},{wch:12},...CATS.map(()=>({wch:13})),{wch:13},{wch:13},{wch:13}];
+  XLSX.utils.book_append_sheet(wb,wsD,'Dashboard');
+  // Meta sheet carries settings (currently just budget) that aren't tied to any one month/year sheet
+  const wsMeta=XLSX.utils.aoa_to_sheet([['Key','Value'],['Budget',budget]]);
+  XLSX.utils.book_append_sheet(wb,wsMeta,'Meta');
+  DB.years.forEach(y=>{
+    MONTHS.forEach(m=>{
+      const rows=((DB.expenses[y]||{})[m]||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+      const data=[['Date','Category','Description','Amount (₹)','Mode']];
+      rows.forEach(e=>{if(+e.amount>0||e.description)data.push([e.date,e.category,e.description,+e.amount,e.mode]);});
+      data.push(['','','TOTAL',rows.reduce((s,e)=>s+(+e.amount),0),'']);
+      const ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=[{wch:13},{wch:14},{wch:30},{wch:14},{wch:10}];
+      XLSX.utils.book_append_sheet(wb,ws,`${m} ${y}`.slice(0,31));
+    });
+  });
+  return wb;
+}
+function exportExcel(){
+  XLSX.writeFile(buildWorkbook(),'Budget_Tracker.xlsx');toast('Excel downloaded ✓');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// IMPORT
+// ═══════════════════════════════════════════════════════════════════════
+let importMode='replace';let parsedImport=null;
+function openImport(){
+  if(!requireConnection())return;
+  parsedImport=null;importMode='replace';
+  document.getElementById('importFile').value='';
+  document.getElementById('importSummary').style.display='none';
+  document.getElementById('importPreview').style.display='none';
+  document.getElementById('importModeWrap').style.display='none';
+  document.getElementById('previewBtn').style.display='none';
+  document.getElementById('confirmImportBtn').style.display='none';
+  document.getElementById('importDrop').querySelector('.dl').textContent='Drop Excel file here or click to browse';
+  document.getElementById('importDrop').querySelector('.ds').textContent='.xlsx or .xls';
+  selMode('replace');
+  document.getElementById('importModal').classList.add('open');
+}
+function closeImport(){document.getElementById('importModal').classList.remove('open');parsedImport=null;}
+function selMode(m){
+  importMode=m;
+  document.getElementById('modeReplace').classList.toggle('selected',m==='replace');
+  document.getElementById('modeMerge').classList.toggle('selected',m==='merge');
+}
+function parseExcelDate(val){
+  if(!val)return'';
+  if(typeof val==='string'){
+    const s=val.trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+    const mn={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+    const m1=s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+    if(m1){const mo=mn[m1[2].slice(0,1).toUpperCase()+m1[2].slice(1,3).toLowerCase()];if(mo)return`${m1[3]}-${String(mo).padStart(2,'0')}-${m1[1].padStart(2,'0')}`;}
+    const d=new Date(s);if(!isNaN(d))return d.toISOString().slice(0,10);return s;
+  }
+  if(typeof val==='number'){const d=new Date(Math.round((val-25569)*86400*1000));return d.toISOString().slice(0,10);}
+  if(val instanceof Date)return val.toISOString().slice(0,10);
+  return String(val);
+}
+// Parse a sheet name like "March 2026", "Mar-2026", or bare "March" into {month, year}
+function parseSheetName(sn,fallbackYear){
+  const s=sn.trim();
+  const month=MONTHS.find(m=>s.toLowerCase().includes(m.toLowerCase())||s.toLowerCase().includes(m.slice(0,3).toLowerCase()));
+  if(!month)return null;
+  const ym=s.match(/(20\d{2})/);
+  const year=ym?parseInt(ym[1],10):(fallbackYear!==undefined?fallbackYear:currentYear);
+  return{month,year};
+}
+// Turn a sheet's raw rows (header row + data rows) into expense objects, used
+// both for merge/replace import and for a full load from the GitHub workbook.
+function parseSheetRows(rows){
+  if(rows.length<2)return[];
+  let hr=0;
+  for(let i=0;i<Math.min(5,rows.length);i++){if(rows[i].some(c=>String(c).toLowerCase().trim()==='date')){hr=i;break;}}
+  const hdrs=rows[hr].map(h=>String(h).toLowerCase().trim());
+  const ci={date:hdrs.indexOf('date'),category:hdrs.findIndex(h=>h.includes('category')),
+    description:hdrs.findIndex(h=>h.includes('description')||h.includes('desc')),
+    amount:hdrs.findIndex(h=>h.includes('amount')||h.includes('₹')),mode:hdrs.findIndex(h=>h.includes('mode'))};
+  const out=[];
+  for(let i=hr+1;i<rows.length;i++){
+    const r=rows[i];
+    const rawDate=ci.date>=0?r[ci.date]:'';
+    const cat=ci.category>=0?String(r[ci.category]).trim():'';
+    const desc=ci.description>=0?String(r[ci.description]).trim():'';
+    const mode=ci.mode>=0?String(r[ci.mode]).trim():'';
+    const amt=parseFloat(String(ci.amount>=0?r[ci.amount]:0).replace(/[^0-9.-]/g,''))||0;
+    const dateStr=parseExcelDate(rawDate);
+    if(!dateStr&&!cat&&!desc&&amt===0)continue;
+    if(desc.toUpperCase()==='TOTAL'||cat.toUpperCase()==='TOTAL')continue;
+    out.push({date:dateStr,category:cat,description:desc,amount:amt,mode});
+  }
+  return out;
+}
+// Build the full in-memory DB straight from a parsed workbook (used when
+// loading from GitHub, where the xlsx IS the database, not just an import).
+function workbookToDB(wb,fallbackYear){
+  const expenses={};const yearsSet=new Set();
+  wb.SheetNames.forEach(sn=>{
+    if(sn==='Dashboard'||sn==='Meta')return;
+    const parsed=parseSheetName(sn,fallbackYear);
+    if(!parsed)return;
+    const{month,year}=parsed;
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:''});
+    const parsedRows=parseSheetRows(rows);
+    if(!expenses[year])expenses[year]={};
+    expenses[year][month]=parsedRows.map((r,i)=>({...r,id:year+'_'+month+'_'+i}));
+    yearsSet.add(year);
+  });
+  const years=yearsSet.size?[...yearsSet].sort((a,b)=>a-b):[fallbackYear!==undefined?fallbackYear:BASE_YEAR];
+  // Any month with no real rows gets the blank daily placeholders, same as a fresh year
+  years.forEach(y=>{
+    if(!expenses[y])expenses[y]={};
+    MONTHS.forEach(m=>{
+      if(!expenses[y][m]||!expenses[y][m].length){
+        expenses[y][m]=genBlanksForMonth(y,m).map((r,i)=>({...r,id:y+'_'+m+'_b'+i}));
+      }
+    });
+  });
+  let budget=50000;
+  if(wb.Sheets['Meta']){
+    const metaRows=XLSX.utils.sheet_to_json(wb.Sheets['Meta'],{header:1,defval:''});
+    const row=metaRows.find(r=>String(r[0]).trim().toLowerCase()==='budget');
+    if(row&&row[1])budget=parseFloat(row[1])||50000;
+  }
+  return{years,budget,expenses};
+}
+function handleImportFile(file){
+  if(!file)return;
+  document.getElementById('importDrop').querySelector('.dl').textContent=`📄 ${file.name}`;
+  document.getElementById('importDrop').querySelector('.ds').textContent=`${(file.size/1024).toFixed(1)} KB — parsing…`;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
+      const result={};let totalRows=0,skipped=[],yearsFound=new Set();
+      wb.SheetNames.forEach(sn=>{
+        if(sn==='Dashboard'||sn==='Meta')return;
+        const parsed=parseSheetName(sn,currentYear);
+        if(!parsed){skipped.push(sn);return;}
+        const{month,year}=parsed;
+        yearsFound.add(year);
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:''});
+        const mRows=parseSheetRows(rows);
+        if(mRows.length>0){
+          result[year]=result[year]||{};
+          result[year][month]=mRows;
+          totalRows+=mRows.length;
+        }
+      });
+      parsedImport=result;
+      const yList=Object.keys(result);
+      const mCount=yList.reduce((s,y)=>s+Object.keys(result[y]).length,0);
+      const sumEl=document.getElementById('importSummary');sumEl.style.display='block';
+      sumEl.innerHTML=`
+        <div class="sum-row"><span>Years found</span><span class="sum-badge sum-new">${yList.length?yList.join(', '):'none'}</span></div>
+        <div class="sum-row"><span>Sheets matched</span><span class="sum-badge sum-upd">${mCount} month${mCount!==1?'s':''}</span></div>
+        <div class="sum-row"><span>Total rows found</span><span class="sum-badge sum-upd">${totalRows} rows</span></div>
+        ${skipped.length?`<div class="sum-row"><span>Unrecognised sheets</span><span class="sum-badge sum-skip">${skipped.join(', ')}</span></div>`:''}
+        <div class="sum-row" style="font-size:11px;color:var(--muted)">${yList.map(y=>Object.keys(result[y]).map(m=>`<span style="margin-right:6px">${m} ${y}: ${result[y][m].length}</span>`).join('')).join('')}</div>`;
+      document.getElementById('importModeWrap').style.display='block';
+      document.getElementById('previewBtn').style.display='inline-flex';
+      document.getElementById('confirmImportBtn').style.display='inline-flex';
+      document.getElementById('importDrop').querySelector('.ds').textContent=`✓ Parsed ${totalRows} rows across ${mCount} month(s)`;
+    }catch(err){
+      const s=document.getElementById('importSummary');s.style.display='block';
+      s.innerHTML=`<div style="color:var(--red);font-size:13px">❌ Error: ${err.message}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function previewImport(){
+  if(!parsedImport)return;
+  const preEl=document.getElementById('importPreview');preEl.style.display='block';
+  const flat=[];
+  Object.keys(parsedImport).forEach(y=>Object.keys(parsedImport[y]).forEach(m=>{
+    parsedImport[y][m].slice(0,3).forEach(r=>flat.push({...r,month:m,year:y}));
+  }));
+  const sample=flat.slice(0,12);
+  preEl.innerHTML=`<div style="font-size:10px;color:var(--muted);margin-bottom:6px">Showing up to 3 rows per month:</div>
+    <table><thead><tr><th>Year</th><th>Month</th><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Mode</th></tr></thead>
+    <tbody>${sample.map(r=>`<tr><td style="color:var(--accent)">${r.year}</td><td style="color:var(--accent)">${r.month}</td><td>${r.date||'—'}</td><td>${r.category||'—'}</td><td>${r.description||'—'}</td><td>${r.amount>0?fmt(r.amount):'—'}</td><td>${r.mode||'—'}</td></tr>`).join('')}</tbody></table>`;
+}
+function confirmImport(){
+  if(!parsedImport)return;
+  const years=Object.keys(parsedImport);let added=0;let monthsTouched=0;
+  years.forEach(year=>{
+    const y=parseInt(year,10);
+    if(!DB.years.includes(y)){DB.years.push(y);DB.years.sort((a,b)=>a-b);}
+    DB.expenses[y]=DB.expenses[y]||blankYear(y);
+    Object.keys(parsedImport[year]).forEach(month=>{
+      const incoming=parsedImport[year][month];monthsTouched++;
+      if(importMode==='replace'){
+        DB.expenses[y][month]=incoming.map(r=>({...r,id:uid()}));added+=incoming.length;
+      }else{
+        const existing=DB.expenses[y][month]||[];
+        const keys=new Set(existing.map(e=>`${e.date}|${e.description}|${e.amount}`));
+        const toAdd=incoming.filter(r=>!keys.has(`${r.date}|${r.description}|${r.amount}`));
+        DB.expenses[y][month]=[...existing,...toAdd.map(r=>({...r,id:uid()}))];added+=toAdd.length;
+      }
+    });
+  });
+  saveData(DB);closeImport();toast(`✓ Imported ${added} rows across ${monthsTouched} month(s)`);
+  populateYearSelect();populateCatSelects();
+  if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
+  if(document.getElementById('page-expenses').classList.contains('active'))renderAllTable();
+  if(document.getElementById('page-month').classList.contains('active'))renderMonthPage();
+  if(document.getElementById('page-compare').classList.contains('active'))renderCompare();
+  syncToGitHub(`Imported ${added} rows across ${monthsTouched} month(s)`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  // Drag-drop
+  const drop=document.getElementById('importDrop');
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('dragover');});
+  drop.addEventListener('dragleave',()=>drop.classList.remove('dragover'));
+  drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)handleImportFile(f);});
+  // Modal close on backdrop
+  ['importModal','editModal','connectGate'].forEach(id=>{
+    document.getElementById(id).addEventListener('click',e=>{
+      if(e.target===document.getElementById(id)){
+        if(id==='importModal')closeImport();
+        else if(id==='editModal')closeEdit();
+        else cancelConnectGate();
+      }
+    });
+  });
+  document.getElementById('ghConnectBtn').addEventListener('click',connectAndLoad);
+  window.addEventListener('beforeunload',e=>{
+    if(dirty){e.preventDefault();e.returnValue='';}
+  });
+
+  // Not connected by default — the connect gate only opens via the Connect
+  // button (topbar/sidebar). Meanwhile, show whatever was cached from the
+  // last time this browser connected/synced, so there's something to look
+  // at right away. Nothing here is a source of truth — it's read-only until
+  // you connect.
+  const cached=loadCachedSnapshot();
+  if(cached){
+    DB=cached.db;
+    currentYear=DB.years[DB.years.length-1];
+    if(!DB.expenses[currentYear])currentYear=DB.years[0];
+    initAppUI();
+    toast('Showing data from your last session ('+new Date(cached.ts).toLocaleString()+'). Connect to sync changes.','#fbbf24');
+  }else{
+    DB=freshSeedDB();
+    currentYear=DB.years[DB.years.length-1];
+    initAppUI();
+    toast('Not connected — showing default starter data. Connect to GitHub to load your real data.','#fbbf24');
+  }
+});
+
+</script>
+</body>
+</html>
